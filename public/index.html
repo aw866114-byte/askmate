@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1525">
+<title>AskMate</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#0d1525;color:#eef1f6;font-family:system-ui,-apple-system,sans-serif;
+     font-size:21px;line-height:1.5;padding:16px 14px 40px}
+h1{font-size:26px;margin:4px 0 2px;color:#fbbf24;letter-spacing:.5px}
+.sub{color:#8b94a6;font-size:16px;margin:0 0 18px}
+textarea{width:100%;min-height:130px;background:#16203a;color:#fff;border:2px solid #2a3550;
+  border-color:#2a3550;border-radius:12px;padding:14px;font-size:21px;font-family:inherit}
+textarea:focus{outline:none;border-color:#fbbf24}
+.row{display:flex;gap:10px;margin-top:12px}
+button{flex:1;padding:20px 12px;font-size:21px;font-weight:700;border:0;border-radius:12px;
+  font-family:inherit;cursor:pointer}
+#go{background:#fbbf24;color:#0d1525}
+#council{background:#16203a;color:#fbbf24;border:2px solid #2a3550}
+button:disabled{opacity:.5}
+#badge{display:none;margin:22px 0 10px;padding:14px 16px;border-radius:12px;font-weight:800;
+  font-size:20px;letter-spacing:1px;text-align:center}
+.AGREED{background:#12331f;color:#5be08a;border:2px solid #2f7a4a}
+.ESCALATED{background:#3a2a10;color:#fbbf24;border:2px solid #8a6d1f}
+.COUNCIL{background:#152a3a;color:#7ec8ff;border:2px solid #2f5f8a}
+.ERROR{background:#3a1414;color:#ff9a9a;border:2px solid #8a2f2f}
+.BLOCKED{background:#3a1414;color:#ff9a9a;border:2px solid #b3261e}
+#answer{background:#111a2e;border-left:5px solid #fbbf24;border-radius:10px;padding:16px;
+  margin-top:8px;white-space:pre-wrap;display:none;font-size:22px}
+#obj{background:#2a1414;border-left:5px solid #b3261e;border-radius:10px;padding:14px;
+  margin-top:12px;display:none;font-size:18px;color:#ffc9c9}
+#meta{color:#6c7688;font-size:15px;margin-top:14px;display:none}
+#speak{margin-top:14px;width:100%;background:#16203a;color:#eef1f6;border:2px solid #2a3550;display:none}
+.spin{color:#8b94a6;margin-top:18px;display:none}
+.mic{width:100%;background:#1d4ed8;color:#fff;border:0;border-radius:14px;padding:20px;font:700 22px/1 inherit;margin-bottom:12px;cursor:pointer}
+.mic.live{background:#dc2626}
+</style></head><body>
+
+<h1>ASKMATE</h1>
+<p class="sub">Speak or type &middot; 14 models, one key &middot; your canon loads first, every time</p>
+
+<button id="mic" class="mic">🎤 HOLD THE PHONE AND TALK</button>
+<textarea id="q" placeholder="Talk to it, or type. Then press ASK."></textarea>
+<div class="row">
+  <button id="go">ASK</button>
+  <button id="council">FULL COUNCIL</button>
+</div>
+
+<hr style="border:0;border-top:2px solid #2a3550;margin:26px 0 18px">
+<h1 style="font-size:22px">PRICE A JOB</h1>
+<p class="sub">Photos and what you saw. It prices it on your rate and writes the quote.</p>
+<input id="pics" type="file" accept="image/*" multiple capture="environment"
+  style="width:100%;padding:16px;background:#16203a;color:#eef1f6;border:2px solid #2a3550;border-radius:12px;font-size:18px">
+<div id="piccount" style="color:#8b94a6;font-size:16px;margin-top:8px"></div>
+<textarea id="qnotes" style="min-height:100px;margin-top:10px"
+  placeholder="Job name, and what you saw. Talk it in with the mic key."></textarea>
+<button id="micnotes" class="mic">🎤 SAY WHAT YOU SAW</button>
+<div class="row"><button id="price">PRICE IT</button></div>
+
+<div class="spin" id="spin">Working. DeepSeek, then the judge…</div>
+<div id="badge"></div>
+<div id="answer"></div>
+<div id="obj"></div>
+<button id="speak">🔊 READ IT TO ME AGAIN</button>
+<div id="meta"></div>
+
+<script>
+// Key is kept in the phone, never in the page source.
+// LOGIN. One password, chosen by AJ, set in Vercel as ASKMATE_KEY.
+// Typed once on each device and remembered. No account, no email, no signup.
+let KEY = localStorage.getItem('askmate_key') || '';
+function unlockScreen(){
+  var w=document.createElement('div');
+  w.id='lockwrap';
+  w.style.cssText='position:fixed;inset:0;background:#0b0f18;z-index:9999;padding:26px;display:flex;flex-direction:column;justify-content:center;gap:16px';
+  w.innerHTML='<div style="font:800 30px/1.2 system-ui">ASKMATE</div>'+
+    '<div style="color:#8b94a6;font:500 20px/1.4 system-ui">Type your password once. This phone remembers it.</div>'+
+    '<input id="lockkey" type="password" autocomplete="off" style="background:#111827;color:#fff;border:2px solid #2a3550;border-radius:14px;padding:18px;font:600 22px system-ui">'+
+    '<button id="lockgo" style="background:#16a34a;color:#fff;border:0;border-radius:14px;padding:20px;font:700 24px system-ui">LET ME IN</button>'+
+    '<div id="lockmsg" style="color:#fca5a5;font:500 18px system-ui"></div>';
+  document.body.appendChild(w);
+  document.getElementById('lockgo').onclick=async function(){
+    var v=document.getElementById('lockkey').value.trim();
+    if(!v){ document.getElementById('lockmsg').textContent='Nothing typed.'; return; }
+    var r=await fetch('/api/health',{headers:{Authorization:'Bearer '+v}}).catch(function(){return null});
+    if(r && r.status===401){ document.getElementById('lockmsg').textContent='That password was not accepted.'; return; }
+    if(r && r.status===503){ document.getElementById('lockmsg').textContent='No password has been set on the server yet. Set ASKMATE_KEY in Vercel first.'; return; }
+    KEY=v; localStorage.setItem('askmate_key',v); w.remove();
+    speak('You are in.');
+  };
+  document.getElementById('lockkey').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('lockgo').click(); });
+}
+if(!KEY) window.addEventListener('DOMContentLoaded', unlockScreen);
+
+const $ = id => document.getElementById(id);
+let lastSpoken = '';
+
+function speak(text){
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.98; u.pitch = 1;
+    const v = speechSynthesis.getVoices().find(v=>/en-AU/.test(v.lang)) ||
+              speechSynthesis.getVoices().find(v=>/en-GB/.test(v.lang));
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+async function ask(mode){
+  const q = $('q').value.trim(); if(!q) return;
+  ['go','council'].forEach(i=>$(i).disabled=true);
+  $('spin').style.display='block';
+  ['badge','answer','obj','meta','speak'].forEach(i=>$(i).style.display='none');
+  try{
+    const r = await fetch('/api/ask',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+KEY},
+      body: JSON.stringify({question:q, mode})});
+    const d = await r.json();
+    $('spin').style.display='none';
+    const st = d.status || 'ERROR';
+    $('badge').className = st; $('badge').textContent =
+      st==='AGREED' ? 'BOTH AGREED' : st==='ESCALATED' ? 'THEY DISAGREED — GROK SETTLED IT'
+      : st==='COUNCIL' ? 'FULL COUNCIL' : st==='BLOCKED' ? 'GUARD BLOCKED IT — DO NOT SEND' : 'ERROR';
+    $('badge').style.display='block';
+    $('answer').textContent = d.answer || d.error || 'no answer';
+    $('answer').style.display='block';
+    if(d.guard && (d.guard.violations||[]).length){
+      $('obj').textContent = 'GUARD: '+d.guard.verdict+'\n• ' + d.guard.violations.map(v=>v.severity.toUpperCase()+' '+v.id+' — '+v.message).join('\n• ');
+      $('obj').style.display='block';
+    } else if(d.objection && (d.objection.problems||[]).length){
+      $('obj').textContent = 'What the judge pulled it up on:\n• ' + d.objection.problems.join('\n• ');
+      $('obj').style.display='block';
+    }
+    if(d.costUSD!=null){
+      $('meta').textContent = `${(d.ms/1000).toFixed(1)}s · US$${d.costUSD.toFixed(4)} · ${(d.layers||[]).map(l=>l.provider).join(' → ')}`;
+      $('meta').style.display='block';
+    }
+    lastSpoken = (st==='ESCALATED'?'They disagreed. ':'') + (d.answer||d.error||'');
+    $('speak').style.display='block';
+    speak(lastSpoken);
+  }catch(e){
+    $('spin').style.display='none';
+    $('badge').className='ERROR'; $('badge').textContent='ERROR'; $('badge').style.display='block';
+    $('answer').textContent=String(e); $('answer').style.display='block';
+  }
+  ['go','council'].forEach(i=>$(i).disabled=false);
+}
+
+$('pics').onchange=()=>{ const n=$('pics').files.length; $('piccount').textContent = n? n+' photo'+(n>1?'s':'')+' ready' : ''; };
+
+function toDataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
+
+$('price').onclick=async()=>{
+  const files=[...$('pics').files].slice(0,20);
+  const notes=$('qnotes').value.trim();
+  if(!files.length && !notes) return;
+  $('price').disabled=true; $('spin').textContent='Reading the photos and pricing it…'; $('spin').style.display='block';
+  ['badge','answer','obj','meta','speak'].forEach(i=>$(i).style.display='none');
+  try{
+    const images=await Promise.all(files.map(toDataURL));
+    const r=await fetch('/api/quote',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+KEY},
+      body:JSON.stringify({notes,images,job:(notes.split('\n')[0]||'').slice(0,60)})});
+    const d=await r.json();
+    $('spin').style.display='none';
+    if(!d.ok){ $('badge').className='ERROR'; $('badge').textContent='COULD NOT PRICE IT'; $('badge').style.display='block';
+      $('answer').textContent=d.error||'unknown'; $('answer').style.display='block'; $('price').disabled=false; return; }
+    $('badge').className='AGREED'; $('badge').textContent='$'+d.internal.totalIncGST.toLocaleString()+' INC GST';
+    $('badge').style.display='block';
+    $('answer').textContent =
+      d.internal.onSiteHours+' hrs on site x 2 men = '+d.internal.manHours+' man-hours\n'+
+      'Least certain: '+(d.internal.leastCertain||'nothing flagged')+'\n\n'+
+      '--- WHAT SHE SEES ---\n'+d.customerWording+'\n\n'+
+      '--- NOT INCLUDED ---\n• '+d.excluded.join('\n• ');
+    $('answer').style.display='block';
+    if(d.questionsForAJ && d.questionsForAJ.length){
+      $('obj').textContent='It needs to know:\n• '+d.questionsForAJ.join('\n• '); $('obj').style.display='block'; }
+    $('meta').textContent='saved to your records · US$'+(d.costUSD||0).toFixed(4); $('meta').style.display='block';
+    lastSpoken=d.spoken; $('speak').style.display='block'; speak(d.spoken);
+  }catch(e){ $('spin').style.display='none'; $('answer').textContent=String(e); $('answer').style.display='block'; }
+  $('price').disabled=false;
+};
+
+$('go').onclick=()=>ask('fast');
+$('council').onclick=()=>ask('council');
+$('speak').onclick=()=>speak(lastSpoken);
+speechSynthesis.getVoices();
+
+// ── EARS. AJ talks, it types. He does not read, so he must not have to.
+// Chrome and Edge only (webkit). If the browser will not listen we SAY so
+// out loud rather than sitting there looking broken.
+function wireMic(btnId, boxId, idleLabel){
+  var btn = document.getElementById(btnId), box = document.getElementById(boxId);
+  if(!btn || !box) return;
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ btn.textContent = 'This browser will not listen — type it'; btn.disabled = true; return; }
+  var rec = null, running = false;
+  btn.onclick = function(){
+    if(running && rec){ rec.stop(); return; }
+    rec = new SR(); rec.lang='en-AU'; rec.interimResults=true; rec.continuous=true;
+    var settled = box.value ? box.value + ' ' : '';
+    rec.onstart = function(){ running=true; btn.classList.add('live'); btn.textContent='LISTENING — tap to stop'; };
+    rec.onresult = function(e){
+      var interim='';
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        var t=e.results[i][0].transcript;
+        if(e.results[i].isFinal) settled += t + ' '; else interim += t;
+      }
+      box.value = (settled + interim).replace(/\s+/g,' ').trim();
+    };
+    rec.onerror = function(ev){
+      running=false; btn.classList.remove('live'); btn.textContent=idleLabel;
+      if(ev.error==='not-allowed') speak('I need permission to use the microphone. Allow it in the bar at the top.');
+      else if(ev.error==='no-speech') speak('I did not hear anything.');
+    };
+    rec.onend = function(){ running=false; btn.classList.remove('live'); btn.textContent=idleLabel; };
+    try{ rec.start(); }catch(e){ speak('The microphone would not start. Type it instead.'); }
+  };
+}
+wireMic('mic','q','\U0001F3A4 HOLD THE PHONE AND TALK');
+wireMic('micnotes','qnotes','\U0001F3A4 SAY WHAT YOU SAW');
+
+</script>
+</body></html>
