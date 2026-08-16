@@ -1,4 +1,17 @@
 {
-  "functions": { "api/**/*.js": { "maxDuration": 60 } },
-  "crons": [{ "path": "/api/cron/run", "schedule": "0 * * * *" }]
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60
+    },
+    "api/quote.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/run",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
