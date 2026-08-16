@@ -45,8 +45,22 @@ button:disabled{opacity:.5}
 <div class="row">
   <button id="go">ASK</button>
   <button id="council">FULL COUNCIL</button>
+  <button id="best" style="background:#7c3aed">BEST — brings Claude in</button>
 </div>
 
+
+<details style="margin:18px 0;background:#111827;border:1px solid #2a3550;border-radius:14px;padding:14px">
+<summary style="font-size:20px;font-weight:700;cursor:pointer">Who is in here — all 14</summary>
+<div style="font-size:17px;line-height:1.6;color:#cfd8e3;margin-top:10px">
+<b>FREE</b><br>Nemotron 3.5 Lightning · Dots-3 (reads pictures)<br><br>
+<b>PENNIES</b><br>Ling 3.0 Flash · Qwen3.7 Flash · Solar Pro 4 · <b>GPT-5.6 Luna (OpenAI)</b> ·
+<b>Gemini 2.5 Flash-Lite (Google)</b> · <b>Gemini 3.7 Flash (Google)</b> ·
+<b>DeepSeek V4-Flash</b> · Grok 4.3 (xAI) · Seed 2.0 Code<br><br>
+<b>WORTH THE EXTRA</b><br><b>Perplexity Sonar</b> — live web with sources, runs by itself when a question needs today's facts ·
+Kimi K3 — long writing · <b>Claude Opus 5</b> — locked, only runs on BEST<br><br>
+<span style="color:#9fb0c0">ASK uses the free one and a judge. FULL COUNCIL runs five different companies against each other.
+BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
+</div></details>
 <hr style="border:0;border-top:2px solid #2a3550;margin:26px 0 18px">
 <h1 style="font-size:22px">PRICE A JOB</h1>
 <p class="sub">Photos and what you saw. It prices it on your rate and writes the quote.</p>
@@ -58,7 +72,7 @@ button:disabled{opacity:.5}
 <button id="micnotes" class="mic">🎤 SAY WHAT YOU SAW</button>
 <div class="row"><button id="price">PRICE IT</button></div>
 
-<div class="spin" id="spin">Working. DeepSeek, then the judge…</div>
+<div class="spin" id="spin">Working. The bench is answering…</div>
 <div id="badge"></div>
 <div id="answer"></div>
 <div id="obj"></div>
@@ -91,7 +105,10 @@ function unlockScreen(){
   };
   document.getElementById('lockkey').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('lockgo').click(); });
 }
-if(!KEY) window.addEventListener('DOMContentLoaded', unlockScreen);
+// The script sits at the end of <body>, so DOMContentLoaded has usually ALREADY fired
+// by the time we get here — waiting for it meant the login screen never appeared at all.
+// 16 Aug 2026: AJ opened it and said "I can't see the password". This is why.
+if(!KEY){ if(document.readyState==='loading') window.addEventListener('DOMContentLoaded', unlockScreen); else unlockScreen(); }
 
 const $ = id => document.getElementById(id);
 let lastSpoken = '';
@@ -177,7 +194,7 @@ $('price').onclick=async()=>{
     $('answer').style.display='block';
     if(d.questionsForAJ && d.questionsForAJ.length){
       $('obj').textContent='It needs to know:\n• '+d.questionsForAJ.join('\n• '); $('obj').style.display='block'; }
-    $('meta').textContent='saved to your records · US$'+(d.costUSD||0).toFixed(4); $('meta').style.display='block';
+    $('meta').textContent=(d.photosRead||0)+' photos read in '+(d.batches||0)+' batches by '+(d.readBy||'?')+' · US$'+(d.costUSD||0).toFixed(4)+' · saved to your records'; $('meta').style.display='block';
     lastSpoken=d.spoken; $('speak').style.display='block'; speak(d.spoken);
   }catch(e){ $('spin').style.display='none'; $('answer').textContent=String(e); $('answer').style.display='block'; }
   $('price').disabled=false;
@@ -185,6 +202,7 @@ $('price').onclick=async()=>{
 
 $('go').onclick=()=>ask('fast');
 $('council').onclick=()=>ask('council');
+$('best').onclick=()=>ask('best');
 $('speak').onclick=()=>speak(lastSpoken);
 speechSynthesis.getVoices();
 
