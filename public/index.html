@@ -61,6 +61,24 @@ Kimi K3 — long writing · <b>Claude Opus 5</b> — locked, only runs on BEST<b
 <span style="color:#9fb0c0">ASK uses the free one and a judge. FULL COUNCIL runs five different companies against each other.
 BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
 </div></details>
+
+<hr style="border:0;border-top:2px solid #2a3550;margin:26px 0 18px">
+<h1 style="font-size:22px">BUILD OR CHANGE ONE OF MY SITES</h1>
+<p class="sub">Pick the site. Say what you want. It writes the code and pushes it, and the site redeploys itself.</p>
+<select id="repo" style="width:100%;padding:16px;border-radius:12px;background:#0b0e12;color:#e7eefc;border:2px solid #2a3550;font:600 19px inherit;margin-bottom:10px">
+  <option value="aw866114-byte/walker-works-landing">Walker Works — the landing site</option>
+  <option value="aw866114-byte/walker-works">InvoiceMate — the invoicing app</option>
+  <option value="aw866114-byte/reviewmate">ReviewMate</option>
+  <option value="aw866114-byte/certmate">CertMate</option>
+  <option value="aw866114-byte/inspectmate">InspectMate</option>
+  <option value="aw866114-byte/shiftsafe">ShiftSafe</option>
+  <option value="aw866114-byte/leadmate">LeadMate</option>
+  <option value="aw866114-byte/verifymate">VerifyMate</option>
+  <option value="aw866114-byte/askmate" selected>AskMate (this app)</option>
+</select>
+<button id="micbuild" class="mic">🎤 SAY WHAT YOU WANT BUILT</button>
+<textarea id="btask" style="min-height:110px" placeholder="For example: add a page about storm damage clean-ups for Port Macquarie, big text, and a button to call me on 0478 271 516."></textarea>
+<div class="row"><button id="build">BUILD IT</button></div>
 <hr style="border:0;border-top:2px solid #2a3550;margin:26px 0 18px">
 <h1 style="font-size:22px">PRICE A JOB</h1>
 <p class="sub">Photos and what you saw. It prices it on your rate and writes the quote.</p>
@@ -100,8 +118,12 @@ function unlockScreen(){
     var r=await fetch('/api/health',{headers:{Authorization:'Bearer '+v}}).catch(function(){return null});
     if(r && r.status===401){ document.getElementById('lockmsg').textContent='That password was not accepted.'; return; }
     if(r && r.status===503){ document.getElementById('lockmsg').textContent='No password has been set on the server yet. Set ASKMATE_KEY in Vercel first.'; return; }
-    KEY=v; localStorage.setItem('askmate_key',v); w.remove();
+    KEY=v; localStorage.setItem('askmate_key',v);
+    // Reload rather than just hiding the panel. 16 Aug 2026: AJ's password was accepted and
+    // stored, and the login panel STAYED on top of everything, so it looked broken when he was
+    // already in. A reload is boring and it always works.
     speak('You are in.');
+    setTimeout(function(){ location.reload(); }, 700);
   };
   document.getElementById('lockkey').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('lockgo').click(); });
 }
@@ -237,6 +259,36 @@ function wireMic(btnId, boxId, idleLabel){
     try{ rec.start(); }catch(e){ speak('The microphone would not start. Type it instead.'); }
   };
 }
+
+// BUILD — AJ picks any site he owns and says what he wants. AskMate writes the code,
+// pushes it to that repo, and Vercel redeploys it. 16 Aug 2026: "should be for every site I have."
+$('build').onclick = async () => {
+  const task = $('btask').value.trim(); const repo = $('repo').value;
+  if(!task){ speak('Tell it what you want built first.'); return; }
+  $('build').disabled = true;
+  $('spin').textContent = 'Building it and pushing it to ' + repo.split('/')[1] + '…';
+  $('spin').style.display='block';
+  ['badge','answer','obj','meta','speak'].forEach(i=>$(i).style.display='none');
+  try{
+    const r = await fetch('/api/agent', { method:'POST',
+      headers:{'Content-Type':'application/json', Authorization:'Bearer '+KEY},
+      body: JSON.stringify({ task, repo, maxSteps: 6 }) });
+    const d = await r.json();
+    $('spin').style.display='none';
+    $('badge').className = d.status==='DONE' ? 'AGREED' : 'ERROR';
+    $('badge').textContent = d.status || 'ERROR'; $('badge').style.display='block';
+    $('answer').textContent = (d.answer || d.error || '') + '\n\n' +
+      (d.steps||[]).map(s=>'• '+s.tool+' → '+String(s.result).slice(0,140)).join('\n');
+    $('answer').style.display='block';
+    $('meta').textContent = 'US$'+(d.costUSD||0).toFixed(4)+' · '+repo; $('meta').style.display='block';
+    lastSpoken = d.status==='DONE' ? 'Done. It wrote the file and pushed it. Give it a minute to go live.'
+                                   : 'It did not finish. ' + String(d.answer||d.error||'').slice(0,200);
+    $('speak').style.display='block'; speak(lastSpoken);
+  }catch(e){ $('spin').style.display='none'; $('answer').textContent=String(e); $('answer').style.display='block'; }
+  $('build').disabled=false;
+};
+wireMic('micbuild','btask','\U0001F3A4 SAY WHAT YOU WANT BUILT');
+
 wireMic('mic','q','\U0001F3A4 HOLD THE PHONE AND TALK');
 wireMic('micnotes','qnotes','\U0001F3A4 SAY WHAT YOU SAW');
 
