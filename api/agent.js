@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
           // STAGE 5 — every action lands in VerifyMate's journal AS IT HAPPENS,
           // so a run that dies halfway still leaves a record of what it did.
           await run.step(`${tc.function.name} ${JSON.stringify(args).slice(0,200)}`, String(out).slice(0,400));
-          messages.push({ role:'tool', tool_call_id:tc.id, content:String(out).slice(0,8000) });
+          messages.push({ role:'tool', tool_call_id:tc.id, content:String(out).slice(0,120000) });  // was 8,000 - too small to hold one of AJ's own files
         }
         continue;
       }
