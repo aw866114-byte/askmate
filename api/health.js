@@ -1,13 +1,26 @@
+// ── LOGIN. Deliberately forgiving, and here is why.
+// 16 Aug 2026: AJ typed his own password into Vercel, saved it, we redeployed, and it still
+// refused him. Case, a stray space, an invisible newline - any of them and an exact match says no,
+// and he has no way to see which. He cannot read the box he is typing into. So this app compares
+// TRIMMED and LOWERCASED. It is his own single-user app behind an unguessable URL; a password that
+// locks the owner out is worse than one that tolerates a capital letter.
+function okKey(req) {
+  const want = String(process.env.ASKMATE_KEY || '').trim().toLowerCase();
+  if (!want) return false;
+  const sent = String((req.headers && (req.headers.authorization || req.headers.Authorization)) || '')
+    .replace(/^Bearer\s*/i, '').trim().toLowerCase();
+  return sent !== '' && sent === want;
+}
 const { loadCanon } = require('../lib/canon');
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   // Open by default so AJ can see what is wired up. But if a password IS sent,
   // it must be right — this is what the login screen tests against, so a wrong
   // password is rejected at the door instead of after it has spent money.
-  const sent = (req.headers.authorization || '').replace('Bearer ', '').trim();
+  const sent = (req.headers.authorization || '').replace('Bearer ', '').trim().trim();
   if (sent) {
     if (!process.env.ASKMATE_KEY) { res.statusCode = 503; return res.end(JSON.stringify({ ok: false, error: 'ASKMATE_KEY is not set on this project, so nothing can log in yet.' })); }
-    if (sent !== process.env.ASKMATE_KEY) { res.statusCode = 401; return res.end(JSON.stringify({ ok: false, error: 'wrong password' })); }
+    if (!okKey(req)) { res.statusCode = 401; return res.end(JSON.stringify({ ok: false, error: 'wrong password' })); }
   }
   const keys = {
     deepseek: !!process.env.DEEPSEEK_API_KEY, qwen: !!process.env.QWEN_API_KEY,
