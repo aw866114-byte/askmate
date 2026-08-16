@@ -1,0 +1,8 @@
+{
+  "name": "askmate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AJ Walker's model council. DeepSeek works, Qwen judges, Grok settles. Canon from VerifyMate is loaded on every call and is not optional.",
+  "engines": { "node": ">=18" },
+  "scripts": { "dev": "node server.js" }
+}
