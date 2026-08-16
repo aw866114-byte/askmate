@@ -18,6 +18,7 @@ const { call, ROSTER } = require('../lib/models');
 const { loadCanon } = require('../lib/canon');
 const { log } = require('../lib/store');
 const { guard } = require('../lib/guard');
+const { PROTOCOL, open } = require('../lib/protocol');
 
 // The bench that answers in council mode — five different companies on purpose.
 // Different training, different blind spots. Agreement between them means something;
@@ -28,11 +29,13 @@ const BENCH = ['worker', 'google', 'openai', 'frugal', 'free_bulk'];
 const NEEDS_LIVE_FACTS = /\b(today|now|current|currently|latest|this week|this month|price|cost|how much|who is|when (is|does|did)|news|202[5-9]|deadline|still (open|live|available)|rate|fee)\b/i;
 
 const WORKER_SYS = (canon, evidence) => `${canon}
+${PROTOCOL}
 ${evidence}
 You are AJ's worker. Do the job he asked. Short. Two lines where two lines will do.
 If you do not know, say UNKNOWN. Never state a guess as a fact.`;
 
 const JUDGE_ONE = (canon) => `${canon}
+${PROTOCOL}
 
 You are the JUDGE. You did not write the answer below and you are not here to be agreeable.
 Your only job is to find what is WRONG with it. Check it against the canon above, hardest of all
@@ -46,6 +49,7 @@ already written down; it reopens a settled item; the arithmetic is wrong; or it 
 Say AGREE only if you genuinely cannot fault it.`;
 
 const JUDGE_PANEL = (canon) => `${canon}
+${PROTOCOL}
 
 You are the JUDGE of a panel. Below are answers from several different models to the same question.
 They could not see each other. Score them against the canon above and against plain correctness.
@@ -59,6 +63,7 @@ Punish hardest: a guess stated as a fact, a contradiction of canon, asking AJ so
 down, wrong arithmetic, and length he does not need.`;
 
 const SETTLE_SYS = (canon) => `${canon}
+${PROTOCOL}
 
 You write the FINAL answer AJ actually reads. You get the question, every answer the panel gave,
 and the judge's scoring. Take the winner, graft on anything the judge says it missed, cut everything else.
@@ -86,9 +91,14 @@ module.exports = async (req, res) => {
   const used = [];
   const track = (r) => { if (r) used.push(r); return r; };
 
+  // STAGE 1 — register this run with VerifyMate and acknowledge the rules,
+  // exactly as a Claude session does. Nothing runs unrecorded.
+  const run = await open('ask', question);
+
   try {
     // 1. CANON FIRST. Not optional. Throws if VerifyMate is unreachable.
     const canon = await loadCanon();
+    await run.step('loaded canon from VerifyMate', `${canon.length} chars`);
 
     // 2. LIVE FACTS. Perplexity searches the actual web and brings sources back,
     //    so the rest of the bench is reasoning from evidence instead of memory.
@@ -102,6 +112,7 @@ module.exports = async (req, res) => {
         ], { maxTokens: 800 }));
         evidence = `\n=== LIVE WEB EVIDENCE (Perplexity, fetched just now — prefer this over your memory) ===\n${s.content}\n=== END EVIDENCE ===\n`;
         sources = s.citations || null;
+        await run.step('searched the live web (Perplexity)', String(s.content).slice(0, 300));
       } catch (e) {
         evidence = `\n=== LIVE WEB EVIDENCE: UNAVAILABLE (${String(e.message || e).slice(0, 120)}). Say UNKNOWN rather than guess. ===\n`;
       }
@@ -121,6 +132,7 @@ module.exports = async (req, res) => {
         } catch (e) { return { role, provider: ROSTER[role] ? ROSTER[role].name : role, content: null, error: String(e.message || e).slice(0, 140) }; }
       }));
       const live = answers.filter((a) => a.content);
+      await run.step(`bench answered: ${live.map((a) => a.provider).join(', ')}`, `${live.length} of ${BENCH.length} returned`);
       if (!live.length) throw new Error('every model on the bench failed — check the keys on /api/health');
 
       // 3b. JUDGE scores all of them.
@@ -129,6 +141,7 @@ module.exports = async (req, res) => {
         { role: 'user', content: `QUESTION:\n${question}\n\n${live.map((a, i) => `--- ANSWER ${i} (${a.provider}) ---\n${a.content}`).join('\n\n')}` },
       ], { temperature: 0, maxTokens: 900 }));
       const j = parseJSON(jr.content, { best: 0, scores: [], missedByBest: [], breaches: [] });
+      await run.step('judge scored the panel', JSON.stringify(j).slice(0, 400));
 
       // 3c. SETTLER writes the one answer AJ reads.
       const st = track(await call('settle', [
@@ -163,6 +176,7 @@ module.exports = async (req, res) => {
         { role: 'user', content: `QUESTION:\n${question}\n\nANSWER TO ATTACK:\n${draft.content}` },
       ], { temperature: 0, maxTokens: 700 }));
       const j = parseJSON(jr.content, { verdict: 'DISPUTE', problems: ['judge did not return valid JSON'] });
+      await run.step(`judge said ${j.verdict}`, JSON.stringify(j.problems || []).slice(0, 400));
 
       final = draft.content;
       status = 'AGREED';
@@ -182,10 +196,13 @@ module.exports = async (req, res) => {
     //    16 Aug 2026; it is not skippable now.
     const g = await guard(final, /outreach|email|message|dm|post/i.test(question) ? 'outreach' : 'general');
     if (!g.pass) status = 'BLOCKED';
+    await run.step(`guard ${g.verdict}`, (g.violations || []).map((v) => v.id).join(' | '));
 
     const costUSD = Number(used.reduce((n, r) => n + (r.costUSD || 0), 0).toFixed(6));
     const out = {
       ok: true, status, answer: final, objection, confidence, panel, sources,
+      session: run.session, recordedInVerifyMate: run.recorded,
+      unrecordedReason: run.recorded ? null : run.startError,
       searched: !!evidence,
       guard: { verdict: g.verdict, violations: g.violations || [] },
       costUSD, ms: Date.now() - t0,
@@ -196,8 +213,10 @@ module.exports = async (req, res) => {
       models: used.map((x) => x.provider).join(' | '),
       breaches: (objection?.breaches || []).join(' | '),
       guardVerdict: g.verdict, guardViolations: (g.violations || []).map((v) => v.id).join(' | ') });
+    await run.close(status, final, { costUSD, ms: out.ms, models: used.map((x) => x.provider).join(', '), guard: g.verdict });
     res.statusCode = 200; res.end(JSON.stringify(out));
   } catch (e) {
+    await run.close('ERROR', String(e.message || e));
     await log('asks', { question, status: 'ERROR', error: String(e.message || e) });
     res.statusCode = 500;
     res.end(JSON.stringify({ ok: false, status: 'ERROR', error: String(e.message || e) }));
