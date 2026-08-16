@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
+<!-- 16 Aug 2026: AJ spent an afternoon looking at a cached copy of this page
+     while the live one was already fixed. Never again. -->
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d1525">
 <title>AskMate</title>
@@ -130,6 +134,10 @@ function unlockScreen(){
 // The script sits at the end of <body>, so DOMContentLoaded has usually ALREADY fired
 // by the time we get here — waiting for it meant the login screen never appeared at all.
 // 16 Aug 2026: AJ opened it and said "I can't see the password". This is why.
+// If a login panel is somehow still on screen while we already have the key, kill it.
+// A panel covering the whole page silently swallows every single button press, and it
+// looks exactly like 'none of the buttons work'.
+setInterval(function(){ var w=document.getElementById('lockwrap'); if(w && (localStorage.getItem('askmate_key')||'')) w.remove(); }, 400);
 if(!KEY){ if(document.readyState==='loading') window.addEventListener('DOMContentLoaded', unlockScreen); else unlockScreen(); }
 
 const $ = id => document.getElementById(id);
