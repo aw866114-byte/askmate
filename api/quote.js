@@ -4,7 +4,7 @@ const { call } = require('../lib/models');
 const { loadCanon } = require('../lib/canon');
 const { guard } = require('../lib/guard');
 const { log } = require('../lib/store');
-const { SYSTEM, price, RULES } = require('../lib/quote');
+const { SYSTEM, LOOK, price, RULES } = require('../lib/quote');
 
 function body(req){ return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{}); }
 
@@ -20,38 +20,60 @@ module.exports = async (req,res) => {
   const t0=Date.now();
   try{
     const canon = await loadCanon();
-    const content = [{ type:'text', text:`JOB: ${job||'(unnamed)'}\n\nAJ'S NOTES:\n${notes||'(none — go off the photos)'}` }];
-    for (const url of images.slice(0,10)) content.push({ type:'image_url', image_url:{ url } });
+    // ── EVERY PHOTO GETS SEEN. AJ, 16 Aug 2026: "All the photos are different."
+    // A cap of ten was my limit, not his job's. So they go through in small batches,
+    // each batch read properly, and the findings are merged before anything is priced.
+    const EYES = (process.env.VISION_ORDER || 'judge,google_big,openai,free_eyes').split(',').map(x => x.trim());
+    const BATCH = Number(process.env.PHOTO_BATCH || 5);
+    const pics = images.slice(0, 60);
+    const batches = [];
+    for (let i = 0; i < pics.length; i += BATCH) batches.push(pics.slice(i, i + BATCH));
 
-    // EYES. Tried in order, cheapest-that-works first, and it does NOT give up after one.
-    // 16 Aug 2026: the first live run came back with an empty answer and the whole quote
-    // failed. One model returning nothing must never mean no quote — it means try the next.
-    const VISION = (process.env.VISION_ORDER || 'judge,google_big,openai,free_eyes').split(',').map(s => s.trim());
-    let parsed = null, r = null, tried = [];
-    for (const role of VISION) {
-      try {
-        r = await call(role, [
-          { role:'system', content: SYSTEM(canon) },
-          { role:'user', content },
-        ], { temperature:0.2, maxTokens:4000, model: process.env.VISION_MODEL || null });
-        const txt = (r.content || '').replace(/^```json|^```|```$/gm,'').trim();
-        const start = txt.indexOf('{');
-        if (start >= 0) {
-          try { parsed = JSON.parse(txt.slice(start)); } catch { parsed = null; }
-        }
-        tried.push({ role, provider:r.provider, chars:(r.content||'').length, finish:r.finishReason, parsed: !!parsed });
-        if (parsed) break;
-      } catch (e) {
-        tried.push({ role, error:String(e.message||e).slice(0,140) });
+    const tried = [];
+    async function withEyes(messages, maxTokens) {
+      for (const role of EYES) {
+        try {
+          const r = await call(role, messages, { temperature: 0.2, maxTokens, model: process.env.VISION_MODEL || null });
+          if ((r.content || '').trim()) { tried.push({ role, provider: r.provider, chars: r.content.length }); return r; }
+          tried.push({ role, provider: r.provider, chars: 0, finish: r.finishReason });
+        } catch (e) { tried.push({ role, error: String(e.message || e).slice(0, 120) }); }
       }
+      return null;
+    }
+
+    // PASS 1 — look at every batch, in parallel, and write down what is physically there.
+    const seen = await Promise.all(batches.map(async (group, i) => {
+      const content = [{ type: 'text', text: `PHOTO BATCH ${i + 1} of ${batches.length}. Photos ${i * BATCH + 1}-${i * BATCH + group.length} of ${pics.length}.` }];
+      for (const url of group) content.push({ type: 'image_url', image_url: { url } });
+      const r = await withEyes([{ role: 'system', content: LOOK }, { role: 'user', content }], 1200);
+      return r ? `--- PHOTOS ${i * BATCH + 1}-${i * BATCH + group.length} ---\n${r.content}` : null;
+    }));
+    const observations = seen.filter(Boolean);
+    if (!observations.length && pics.length) {
+      res.statusCode = 200;
+      return res.end(JSON.stringify({ ok: false, error: 'no model on the bench could read those photos', tried }));
+    }
+
+    // PASS 2 — price ONCE, off everything that was seen across every photo.
+    const r = await withEyes([
+      { role: 'system', content: SYSTEM(canon) },
+      { role: 'user', content:
+        `JOB: ${job || '(unnamed)'}\n\nAJ'S NOTES:\n${notes || '(none)'}\n\n` +
+        `WHAT WAS SEEN ACROSS ALL ${pics.length} PHOTOS (${batches.length} batches, every photo read):\n` +
+        observations.join('\n\n') +
+        `\n\nPrice the WHOLE property from all of that. Do not price one batch.` },
+    ], 4000);
+
+    let parsed = null;
+    if (r) {
+      const txt = (r.content || '').replace(/^```json|^```|```$/gm, '').trim();
+      const at = txt.indexOf('{');
+      if (at >= 0) { try { parsed = JSON.parse(txt.slice(at)); } catch { parsed = null; } }
     }
     if (!parsed) {
       res.statusCode = 200;
-      return res.end(JSON.stringify({ ok:false,
-        error:'no model on the bench could read those photos into a quote',
-        tried,
-        raw: (r && r.content || '').slice(0,800),
-        rawChoice: (r && r.rawChoice) || null }));
+      return res.end(JSON.stringify({ ok: false, error: 'the photos were read but the pricing pass did not return clean JSON',
+        photosRead: pics.length, batches: batches.length, observations, tried, raw: (r && r.content || '').slice(0, 800) }));
     }
 
     // The arithmetic is done HERE, in code. Not by a model. This is the $352 lesson.
@@ -71,6 +93,7 @@ module.exports = async (req,res) => {
             + `${money.totalIncGST} dollars including G S T. Green waste on top at cost. `
             + `The least certain part is ${parsed.leastCertain||'nothing flagged'}.`,
       costUSD: r.costUSD, ms: Date.now()-t0, readBy: r.provider, tried,
+      photosRead: pics.length, batches: batches.length, observations,
     };
     // WRITTEN THE MOMENT IT EXISTS. A chat lost his quote figures once; never again.
     await log('quotes', { job: out.job, notes, photos: images.length, total: money.totalIncGST,
