@@ -102,10 +102,23 @@ BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
 <div id="meta"></div>
 
 <script>
+window.addEventListener('error',function(e){
+  var d=document.getElementById('answer');
+  if(d){ d.textContent='Something in the page broke: '+e.message+'\n\nTell AJ this exact line.'; d.style.display='block'; }
+});
 // Key is kept in the phone, never in the page source.
 // LOGIN. One password, chosen by AJ, set in Vercel as ASKMATE_KEY.
 // Typed once on each device and remembered. No account, no email, no signup.
-let KEY = localStorage.getItem('askmate_key') || '';
+// ── STORAGE, SAFELY. THIS IS THE BUG THAT KILLED EVERY BUTTON.
+// 16 Aug 2026: AJ said "none of the buttons work", on his computer AND on a fresh phone.
+// The very first line of this script read localStorage. If the browser blocks site data -
+// private mode, blocked cookies, a shield extension - that line THROWS, the whole script
+// dies before a single button handler is attached, and there is nothing on screen to say so.
+// Buttons that look fine and do nothing. Never let storage take the app down again.
+var MEM = {};
+function store(k, v){ try{ localStorage.setItem(k, v); }catch(e){} MEM[k] = v; }
+function recall(k){ try{ var v = localStorage.getItem(k); if(v !== null) return v; }catch(e){} return MEM[k] || ''; }
+let KEY = recall('askmate_key');
 function unlockScreen(){
   var w=document.createElement('div');
   w.id='lockwrap';
@@ -122,7 +135,7 @@ function unlockScreen(){
     var r=await fetch('/api/health',{headers:{Authorization:'Bearer '+v}}).catch(function(){return null});
     if(r && r.status===401){ document.getElementById('lockmsg').textContent='That password was not accepted.'; return; }
     if(r && r.status===503){ document.getElementById('lockmsg').textContent='No password has been set on the server yet. Set ASKMATE_KEY in Vercel first.'; return; }
-    KEY=v; localStorage.setItem('askmate_key',v);
+    KEY=v; store('askmate_key',v);
     // Reload rather than just hiding the panel. 16 Aug 2026: AJ's password was accepted and
     // stored, and the login panel STAYED on top of everything, so it looked broken when he was
     // already in. A reload is boring and it always works.
@@ -137,7 +150,7 @@ function unlockScreen(){
 // If a login panel is somehow still on screen while we already have the key, kill it.
 // A panel covering the whole page silently swallows every single button press, and it
 // looks exactly like 'none of the buttons work'.
-setInterval(function(){ var w=document.getElementById('lockwrap'); if(w && (localStorage.getItem('askmate_key')||'')) w.remove(); }, 400);
+setInterval(function(){ var w=document.getElementById('lockwrap'); if(w && recall('askmate_key')) w.remove(); }, 400);
 if(!KEY){ if(document.readyState==='loading') window.addEventListener('DOMContentLoaded', unlockScreen); else unlockScreen(); }
 
 const $ = id => document.getElementById(id);
