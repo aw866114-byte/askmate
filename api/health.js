@@ -14,6 +14,14 @@ function okKey(req) {
 const { loadCanon } = require('../lib/canon');
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  // CORS. AJ runs BRAVE, and the desktop copy of this app opens straight off his disk as a
+  // file://, which has a null origin. Without these headers the browser silently refuses every
+  // call and it looks, once again, like nothing works. 16 Aug 2026.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
+
   // Open by default so AJ can see what is wired up. But if a password IS sent,
   // it must be right — this is what the login screen tests against, so a wrong
   // password is rejected at the door instead of after it has spent money.

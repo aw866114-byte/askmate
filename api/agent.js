@@ -41,6 +41,14 @@ function body(req){ return typeof req.body === 'string' ? JSON.parse(req.body||'
 
 module.exports = async (req, res) => {
   res.setHeader('Content-Type','application/json');
+  // CORS. AJ runs BRAVE, and the desktop copy of this app opens straight off his disk as a
+  // file://, which has a null origin. Without these headers the browser silently refuses every
+  // call and it looks, once again, like nothing works. 16 Aug 2026.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
+
   if (req.method !== 'POST'){ res.statusCode=405; return res.end(JSON.stringify({ok:false,error:'POST only'})); }
   if (!okKey(req)){
     res.statusCode=401; return res.end(JSON.stringify({ok:false,error:'unauthorised'})); }
