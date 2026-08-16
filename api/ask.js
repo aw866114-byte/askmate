@@ -25,6 +25,11 @@ const { PROTOCOL, open } = require('../lib/protocol');
 // agreement between three copies of one model means nothing.
 const BENCH = ['worker', 'google', 'openai', 'frugal', 'free_bulk'];
 
+// BEST — AJ presses this when it really matters. Adds the expensive ones, including
+// Claude Opus, which is otherwise gated so it can never run up a bill by accident.
+// AJ, 16 Aug 2026: "I wanted way more. ChatGPT, Claude at some level, probably Perplexity."
+const BENCH_BEST = [...BENCH, 'google_big', 'long', 'big'];
+
 // Anything that smells like a fact about the world right now goes to Perplexity first.
 const NEEDS_LIVE_FACTS = /\b(today|now|current|currently|latest|this week|this month|price|cost|how much|who is|when (is|does|did)|news|202[5-9]|deadline|still (open|live|available)|rate|fee)\b/i;
 
@@ -120,19 +125,20 @@ module.exports = async (req, res) => {
 
     let final, status, objection = null, confidence = null, panel = null;
 
-    if (mode === 'council') {
+    if (mode === 'council' || mode === 'best') {
       // 3a. THE WHOLE BENCH answers, blind to each other, in parallel.
-      const answers = await Promise.all(BENCH.map(async (role) => {
+      const roster = mode === 'best' ? BENCH_BEST : BENCH;
+      const answers = await Promise.all(roster.map(async (role) => {
         try {
           const r = track(await call(role, [
             { role: 'system', content: WORKER_SYS(canon, evidence) },
             { role: 'user', content: question },
-          ]));
+          ], { allowGated: mode === 'best' }));
           return { role, provider: r.provider, content: r.content };
         } catch (e) { return { role, provider: ROSTER[role] ? ROSTER[role].name : role, content: null, error: String(e.message || e).slice(0, 140) }; }
       }));
       const live = answers.filter((a) => a.content);
-      await run.step(`bench answered: ${live.map((a) => a.provider).join(', ')}`, `${live.length} of ${BENCH.length} returned`);
+      await run.step(`bench answered: ${live.map((a) => a.provider).join(', ')}`, `${live.length} of ${roster.length} returned`);
       if (!live.length) throw new Error('every model on the bench failed — check the keys on /api/health');
 
       // 3b. JUDGE scores all of them.
@@ -149,7 +155,7 @@ module.exports = async (req, res) => {
         { role: 'user', content: `QUESTION:\n${question}\n\nPANEL:\n${live.map((a, i) => `--- ${i} (${a.provider}) ---\n${a.content}`).join('\n\n')}\n\nJUDGE:\n${JSON.stringify(j)}` },
       ]));
       final = st.content;
-      status = 'COUNCIL';
+      status = mode === 'best' ? 'BEST' : 'COUNCIL';
       confidence = j.confidence ?? null;
       objection = { problems: (j.scores || []).flatMap((s) => s.wrong || []), breaches: j.breaches || [], fix: (j.missedByBest || []).join('; ') };
       panel = {
