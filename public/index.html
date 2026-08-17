@@ -177,7 +177,7 @@ async function ask(mode){
     const r = await fetch('/api/ask',{method:'POST',
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+KEY},
       body: JSON.stringify({question:q, mode})});
-    const d = await r.json();
+    const d = await safeJson(r);
     $('spin').style.display='none';
     const st = d.status || 'ERROR';
     $('badge').className = st; $('badge').textContent =
@@ -210,7 +210,52 @@ async function ask(mode){
 
 $('pics').onchange=()=>{ const n=$('pics').files.length; $('piccount').textContent = n? n+' photo'+(n>1?'s':'')+' ready' : ''; };
 
-function toDataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
+// PHOTOS GO THROUGH A DOOR ABOUT 4.5 MB WIDE. Fixed 17 Aug 2026.
+// A phone photo is 3-4 MB, and packaging it for sending makes it a third bigger again, so a
+// SINGLE photo could bounce the whole request. Vercel then answered "Request Entity Too Large"
+// as PLAIN TEXT, the page choked trying to read it as data, and AJ was shown the word
+// "SyntaxError" - his photos never reached the app at all. Every photo is now shrunk in the
+// phone first (1200px is plenty to read a job off), and if it is still too much he is told
+// so in plain English.
+const MAX_EDGE = 1200, JPEG_Q = 0.6, MAX_BYTES = 3.6 * 1024 * 1024;
+
+function shrink(file){
+  return new Promise(res=>{
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+        w = Math.max(1, Math.round(w * scale)); h = Math.max(1, Math.round(h * scale));
+        try {
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          res(c.toDataURL('image/jpeg', JPEG_Q));
+        } catch (e) { res(fr.result); }
+      };
+      img.onerror = () => res(fr.result);
+      img.src = fr.result;
+    };
+    fr.onerror = () => res('');
+    fr.readAsDataURL(file);
+  });
+}
+
+// A reply is not always JSON. A 413, a timeout or a platform error comes back as plain text,
+// and parsing that as data throws "SyntaxError: Unexpected token" straight onto AJ's screen.
+// Never show him that word again - say what actually happened.
+async function safeJson(r){
+  const t = await r.text();
+  try { return JSON.parse(t); }
+  catch (e) {
+    if (r.status === 413 || /too large/i.test(t))
+      return { ok:false, status:'ERROR', error:'Those photos were too big to send. Try again with fewer photos.' };
+    if (r.status === 504 || r.status === 502)
+      return { ok:false, status:'ERROR', error:'It took too long and the connection dropped. Try again with fewer photos.' };
+    return { ok:false, status:'ERROR', error:'The server sent back something that was not an answer (HTTP ' + r.status + '). ' + t.slice(0,140) };
+  }
+}
 
 $('price').onclick=async()=>{
   const files=[...$('pics').files].slice(0,20);
@@ -219,11 +264,20 @@ $('price').onclick=async()=>{
   $('price').disabled=true; $('spin').textContent='Reading the photos and pricing it…'; $('spin').style.display='block';
   ['badge','answer','obj','meta','speak'].forEach(i=>$(i).style.display='none');
   try{
-    const images=await Promise.all(files.map(toDataURL));
+    const images=(await Promise.all(files.map(shrink))).filter(Boolean);
+    const body=JSON.stringify({notes,images,job:(notes.split('\n')[0]||'').slice(0,60)});
+    if(body.length > MAX_BYTES){
+      $('spin').style.display='none';
+      $('badge').className='ERROR'; $('badge').textContent='TOO MANY PHOTOS'; $('badge').style.display='block';
+      const fits=Math.max(1, Math.floor(files.length * MAX_BYTES / body.length));
+      const msg='That is too many photos to send in one go. Try about '+fits+' at a time.';
+      $('answer').textContent=msg; $('answer').style.display='block';
+      speak(msg); $('price').disabled=false; return;
+    }
     const r=await fetch('/api/quote',{method:'POST',
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+KEY},
-      body:JSON.stringify({notes,images,job:(notes.split('\n')[0]||'').slice(0,60)})});
-    const d=await r.json();
+      body});
+    const d=await safeJson(r);
     $('spin').style.display='none';
     if(!d.ok){ $('badge').className='ERROR'; $('badge').textContent='COULD NOT PRICE IT'; $('badge').style.display='block';
       $('answer').textContent=d.error||'unknown'; $('answer').style.display='block'; $('price').disabled=false; return; }
@@ -294,7 +348,7 @@ $('build').onclick = async () => {
     const r = await fetch('/api/agent', { method:'POST',
       headers:{'Content-Type':'application/json', Authorization:'Bearer '+KEY},
       body: JSON.stringify({ task, repo, maxSteps: 6 }) });
-    const d = await r.json();
+    const d = await safeJson(r);
     $('spin').style.display='none';
     $('badge').className = d.status==='DONE' ? 'AGREED' : 'ERROR';
     $('badge').textContent = d.status || 'ERROR'; $('badge').style.display='block';
