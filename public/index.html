@@ -86,7 +86,10 @@ BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
 <hr style="border:0;border-top:2px solid #2a3550;margin:26px 0 18px">
 <h1 style="font-size:22px">PRICE A JOB</h1>
 <p class="sub">Photos and what you saw. It prices it on your rate and writes the quote.</p>
-<input id="pics" type="file" accept="image/*" multiple capture="environment"
+<!-- NO capture= ON THIS INPUT. 17 Aug 2026: capture="environment" sent the phone straight
+     into the camera and HID THE GALLERY, so AJ could not send photos he had already taken.
+     Without it the phone shows the normal picker - camera OR existing photos. Do not put it back. -->
+<input id="pics" type="file" accept="image/*" multiple
   style="width:100%;padding:16px;background:#16203a;color:#eef1f6;border:2px solid #2a3550;border-radius:12px;font-size:18px">
 <div id="piccount" style="color:#8b94a6;font-size:16px;margin-top:8px"></div>
 <textarea id="qnotes" style="min-height:100px;margin-top:10px"
