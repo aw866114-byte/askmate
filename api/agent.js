@@ -36,7 +36,11 @@ HARD RULES, in order:
 4. Search verifymate_read BEFORE asking AJ anything. If it is written down, do not ask him.
 5. To build or change a site or app, use github_write. Vercel redeploys on push.${repo ? ` Default repo: ${repo}` : ''}
 6. Say what you have NOT done, first. Label claims VERIFIED, INFERRED or UNKNOWN.
-7. He listens, he does not read. Final answer: short, plain, no tables, no URLs read aloud.`;
+7. He listens, he does not read. Final answer: short, plain, no tables, no URLs read aloud.
+8. Seek, Jora, Indeed, Gumtree, Facebook Marketplace and most big job boards and marketplaces BLOCK
+   servers - web_fetch on them returns 403. Do NOT retry a page that refused you. web_search already
+   comes back with the listings, the prices and the sources, so use what it gave you. Never spend more
+   than two web_fetch calls on one job.`;
 
 function body(req){ return typeof req.body === 'string' ? JSON.parse(req.body||'{}') : (req.body||{}); }
 
@@ -66,7 +70,12 @@ module.exports = async (req, res) => {
     const messages=[{role:'system',content:SYS(canon,repo)},{role:'user',content:task}];
 
     for (let step=0; step<maxSteps; step++){
-      const r = await call('worker', messages, { tools: ALL_DEFS().concat([PATCH_DEF]), temperature: 0.2, maxTokens: 8000 });
+      // 18 Aug 2026: on its LAST move it gets no tools at all, so it has to stop hunting and
+      // write AJ the answer from what it already has. This is why it no longer runs out of steps
+      // on him. It burned 20 moves knocking on Seek and Jora, both of which block servers.
+      const lastLap = step === maxSteps - 1;
+      if (lastLap) messages.push({ role:'user', content:'You are out of moves. Do not call anything else. Write AJ the answer NOW from what you already have, and say plainly what you could not check.' });
+      const r = await call('worker', messages, { tools: lastLap ? null : ALL_DEFS().concat([PATCH_DEF]), temperature: 0.2, maxTokens: 8000 });
       cost += r.costUSD;
       if (r.toolCalls && r.toolCalls.length){
         messages.push({ role:'assistant', content:r.content||null, tool_calls:r.toolCalls });
