@@ -73,7 +73,7 @@ module.exports = async (req, res) => {
         for (const tc of r.toolCalls){
           let args={}; try{ args=JSON.parse(tc.function.arguments||'{}'); }catch{}
           const out = tc.function.name === 'github_patch' ? await githubPatch(args) : await runAny(tc.function.name, args);
-          trail.push({ step:step+1, tool:tc.function.name, args, result:String(out).slice(0,300) });
+          trail.push({ step:step+1, tool:tc.function.name, args, result:String(out).slice(0,1500) });
           // STAGE 5 — every action lands in VerifyMate's journal AS IT HAPPENS,
           // so a run that dies halfway still leaves a record of what it did.
           await run.step(`${tc.function.name} ${JSON.stringify(args).slice(0,200)}`, String(out).slice(0,400));
@@ -92,7 +92,12 @@ module.exports = async (req, res) => {
       await log('agent', { task, status:out.status, answer:r.content, costUSD:out.costUSD, steps:trail.length, ms:out.ms });
       res.statusCode=200; return res.end(JSON.stringify(out));
     }
-    const out={ ok:true, status:'RAN OUT OF STEPS', steps:trail, costUSD:Number(cost.toFixed(6)), ms:Date.now()-t0, session: run.session };
+    // 18 Aug 2026: this used to hand AJ a red box with nothing in it. If it runs out of
+    // moves it now gives him what it actually found, because that is usually most of the job.
+    const found = trail.map(s2 => '- ' + s2.tool + ': ' + String(s2.result || '')).join('\n\n');
+    const out={ ok:true, status:'RAN OUT OF STEPS',
+      answer:'It ran out of moves before it could write this up properly. Here is what it found:\n\n' + found,
+      steps:trail, costUSD:Number(cost.toFixed(6)), ms:Date.now()-t0, session: run.session };
     await run.close('RAN OUT OF STEPS', `${trail.length} steps, no final answer`);
     await log('agent',{ task, status:'RAN OUT OF STEPS', steps:trail.length, costUSD:out.costUSD });
     res.statusCode=200; res.end(JSON.stringify(out));
