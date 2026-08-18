@@ -1,7 +1,6 @@
 # ASKMATE — AJ Walker's AI operator
 
-Not a chatbot.
-best test worked **Fully automated, like RoofingMate, InvoiceMate and the rest.**
+Not a chatbot. **Fully automated, like InvoiceMate, ReviewMate and the rest.**
 It runs on a Vercel cron, does jobs on its own, and only stops when it needs your yes.
 
 ## What it actually is
