@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
   if (!okKey(req)){
     res.statusCode=401; return res.end(JSON.stringify({ok:false,error:'unauthorised'})); }
 
-  const { task, repo, maxSteps = 8 } = body(req);
+  const { task, repo, maxSteps = 20 } = body(req);
   if (!task){ res.statusCode=400; return res.end(JSON.stringify({ok:false,error:'no task'})); }
 
   const t0=Date.now(); const trail=[]; let cost=0;
