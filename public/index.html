@@ -51,6 +51,7 @@ button:disabled{opacity:.5}
   <button id="council">FULL COUNCIL</button>
   <button id="best" style="background:#7c3aed">BEST — brings Claude in</button>
 </div>
+<p class="sub" style="margin-top:8px">These three answer questions. They cannot change anything. ASK is quickest and cheapest. FULL COUNCIL makes five companies argue and marks them. BEST adds Claude and costs the most.</p>
 
 
 <details style="margin:18px 0;background:#111827;border:1px solid #2a3550;border-radius:14px;padding:14px">
@@ -83,6 +84,7 @@ BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
 <button id="micbuild" class="mic">🎤 SAY WHAT YOU WANT BUILT</button>
 <textarea id="btask" style="min-height:110px" placeholder="For example: add a page about storm damage clean-ups for Port Macquarie, big text, and a button to call me on 0478 271 516."></textarea>
 <div class="row"><button id="build">BUILD IT</button></div>
+<p class="sub" style="margin-top:8px">This is the only one with hands. It searches, reads pages, writes files and pushes them live. Use this for anything you want done.</p>
 <hr style="border:0;border-top:2px solid #2a3550;margin:26px 0 18px">
 <h1 style="font-size:22px">PRICE A JOB</h1>
 <p class="sub">Photos and what you saw. It prices it on your rate and writes the quote.</p>
@@ -350,7 +352,7 @@ $('build').onclick = async () => {
   try{
     const r = await fetch('/api/agent', { method:'POST',
       headers:{'Content-Type':'application/json', Authorization:'Bearer '+KEY},
-      body: JSON.stringify({ task, repo, maxSteps: 6 }) });
+      body: JSON.stringify({ task, repo, maxSteps: 20 }) });
     const d = await safeJson(r);
     $('spin').style.display='none';
     $('badge').className = d.status==='DONE' ? 'AGREED' : 'ERROR';
