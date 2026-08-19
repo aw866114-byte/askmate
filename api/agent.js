@@ -68,7 +68,10 @@ module.exports = async (req, res) => {
   try{
     const canon = await loadCanon();
     await run.step('loaded canon from VerifyMate', `${canon.length} chars`);
-    const messages=[{role:'system',content:SYS(canon,repo)},{role:'user',content:task}];
+    // 19 Aug 2026 - SHORT memory. It has always had the canon; it never had the last thing he said.
+    const past = await recall(thread);
+    await run.step('recalled the conversation', past.length + ' turns');
+    const messages=[{role:'system',content:SYS(canon,repo) + asText(past)},{role:'user',content:task}];
 
     for (let step=0; step<maxSteps; step++){
       // 18 Aug 2026: on its LAST move it gets no tools at all, so it has to stop hunting and
