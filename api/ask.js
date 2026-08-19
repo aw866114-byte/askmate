@@ -30,6 +30,7 @@ function okKey(req) {
 const { call, ROSTER } = require('../lib/models');
 const { loadCanon } = require('../lib/canon');
 const { log } = require('../lib/store');
+const { recall, remember, asText } = require('../lib/memory');
 const { guard } = require('../lib/guard');
 const { PROTOCOL, open } = require('../lib/protocol');
 
