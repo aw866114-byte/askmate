@@ -98,6 +98,7 @@ BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
   placeholder="Job name, and what you saw. Talk it in with the mic key."></textarea>
 <button id="micnotes" class="mic">🎤 SAY WHAT YOU SAW</button>
 <div class="row"><button id="price">PRICE IT</button></div>
+<div class="row"><button id="newjob" style="background:#16203a;color:#eef1f6;border:2px solid #2a3550;font-size:18px">START A NEW JOB &mdash; CLEAR THE PHOTOS</button></div>
 
 <div class="spin" id="spin">Working. The bench is answering…</div>
 <div id="badge"></div>
@@ -353,10 +354,26 @@ $('price').onclick=async()=>{
       $('obj').textContent='It needs to know:\n• '+d.questionsForAJ.join('\n• '); $('obj').style.display='block'; }
     $('meta').textContent=(d.photosRead||0)+' photos read in '+(d.batches||0)+' batches by '+(d.readBy||'?')+' · US$'+(d.costUSD||0).toFixed(4)+' · saved to your records'; $('meta').style.display='block';
     lastSpoken=d.spoken; $('speak').style.display='block'; speak(d.spoken);
-    picReset();                                   // next job starts clean, not on top of this one
-    picLine('Priced. Photos cleared — the next job starts fresh.');
+    // 19 Aug 2026 — CLAUDE'S ERROR, CAUGHT BY AJ ON THE OXLEY HIGHWAY JOB.
+    // This used to call picReset() here. So when he added a note about tip fees and pressed
+    // PRICE IT again, there were NO photos left and it priced his words alone: $616 against
+    // the $1,446 the photos had produced. It looked like the app had halved his job.
+    // THE PHOTOS NOW STAY until he says the job is finished. NEW JOB is the only thing that clears.
+    picLine(QCOUNT ? QCOUNT + ' photos still loaded. Change your notes and press PRICE IT again, or press NEW JOB to start another.'
+                   : 'Priced from your notes. No photos were loaded.');
   }catch(e){ $('spin').style.display='none'; $('answer').textContent=String(e); $('answer').style.display='block'; }
   $('price').disabled=false;
+};
+
+
+// NEW JOB — the ONLY thing that throws the photos away. Added 19 Aug 2026 because clearing
+// them automatically after a price cost AJ a wrong quote on a real job.
+$('newjob').onclick = () => {
+  picReset();
+  $('qnotes').value = '';
+  ['badge','answer','obj','meta','speak'].forEach(i=>$(i).style.display='none');
+  const m = 'Cleared. Add the first five photos for the new job.';
+  picLine(m); speak(m);
 };
 
 $('go').onclick=()=>ask('fast');
