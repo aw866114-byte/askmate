@@ -114,6 +114,7 @@ module.exports = async (req, res) => {
       steps:trail, costUSD:Number(cost.toFixed(6)), ms:Date.now()-t0, session: run.session };
     await run.close('RAN OUT OF STEPS', `${trail.length} steps, no final answer`);
     await log('agent',{ task, status:'RAN OUT OF STEPS', steps:trail.length, costUSD:out.costUSD });
+    await remember(thread, task, out.answer);
     res.statusCode=200; res.end(JSON.stringify(out));
   } catch (e) {
     try { await shutBrowser(); } catch {}
