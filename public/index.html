@@ -539,8 +539,22 @@ $('build').onclick = async () => {
       (d.steps||[]).map(s=>'• '+s.tool+' → '+String(s.result).slice(0,140)).join('\n');
     $('answer').style.display='block';
     $('meta').textContent = 'US$'+(d.costUSD||0).toFixed(4)+' · '+repo; $('meta').style.display='block';
-    lastSpoken = d.status==='DONE' ? 'Done. It wrote the file and pushed it. Give it a minute to go live.'
-                                   : 'It did not finish. ' + String(d.answer||d.error||'').slice(0,200);
+    // 19 Aug 2026. This said "it wrote the file and pushed it, give it a minute to go live"
+    // NO MATTER WHAT THE JOB WAS. AJ asked it to find a file on his own computer and was told
+    // something had gone live. Nothing had. He asked me to confirm and I had to tell him the app
+    // had lied to him. So now it says what actually happened, based on what it actually did.
+    const usedTools = (d.steps||[]).map(s=>String(s.tool||''));
+    const wentLocal  = usedTools.some(x=>x==='local_job');
+    const wentToSite = usedTools.some(x=>x==='github_write'||x==='github_patch');
+    if(d.status!=='DONE'){
+      lastSpoken = 'It did not finish. ' + String(d.answer||d.error||'').slice(0,200);
+    } else if(wentLocal){
+      lastSpoken = 'That has gone to your computer. It will tell you the answer out loud in a few seconds. Nothing has gone live.';
+    } else if(wentToSite){
+      lastSpoken = 'Done. It wrote the file and pushed it. Give it a minute to go live.';
+    } else {
+      lastSpoken = String(d.answer||'').slice(0,300) || 'It finished, but it did not change anything.';
+    }
     $('speak').style.display='block'; speak(lastSpoken);
   }catch(e){ $('spin').style.display='none'; $('answer').textContent=String(e); $('answer').style.display='block'; }
   $('build').disabled=false;
