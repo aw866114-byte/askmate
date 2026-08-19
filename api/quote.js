@@ -35,8 +35,15 @@ module.exports = async (req,res) => {
   if (!okKey(req)){
     res.statusCode=401; return res.end(JSON.stringify({ok:false,error:'unauthorised'})); }
 
-  const { notes='', images=[], job='' } = body(req);
-  if (!notes && !images.length){ res.statusCode=400; return res.end(JSON.stringify({ok:false,error:'send photos or notes'})); }
+  const b = body(req);
+  const { notes='', images=[], job='' } = b;
+  // 19 Aug 2026: photos can now be read BEFORE this call, five at a time, by /api/look.
+  // When that has happened the page sends the WORDS instead of the pictures, so this request
+  // carries no photos at all and comes back in seconds rather than forty-five. See api/look.js.
+  const priorObs = Array.isArray(b.observations)
+    ? b.observations.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()) : [];
+  const priorCount = Math.max(0, Number(b.photosRead || 0));
+  if (!notes && !images.length && !priorObs.length){ res.statusCode=400; return res.end(JSON.stringify({ok:false,error:'send photos or notes'})); }
 
   const t0=Date.now();
   try{
@@ -69,7 +76,7 @@ module.exports = async (req,res) => {
       const r = await withEyes([{ role: 'system', content: LOOK }, { role: 'user', content }], 1200);
       return r ? `--- PHOTOS ${i * BATCH + 1}-${i * BATCH + group.length} ---\n${r.content}` : null;
     }));
-    const observations = seen.filter(Boolean);
+    const observations = priorObs.concat(seen.filter(Boolean));
     if (!observations.length && pics.length) {
       res.statusCode = 200;
       return res.end(JSON.stringify({ ok: false, error: 'no model on the bench could read those photos', tried }));
@@ -80,7 +87,7 @@ module.exports = async (req,res) => {
       { role: 'system', content: SYSTEM(canon) },
       { role: 'user', content:
         `JOB: ${job || '(unnamed)'}\n\nAJ'S NOTES:\n${notes || '(none)'}\n\n` +
-        `WHAT WAS SEEN ACROSS ALL ${pics.length} PHOTOS (${batches.length} batches, every photo read):\n` +
+        `WHAT WAS SEEN ACROSS ALL ${priorCount + pics.length} PHOTOS (${observations.length} batches, every photo read):\n` +
         observations.join('\n\n') +
         `\n\nPrice the WHOLE property from all of that. Do not price one batch.` },
     ], 4000);
@@ -94,7 +101,7 @@ module.exports = async (req,res) => {
     if (!parsed) {
       res.statusCode = 200;
       return res.end(JSON.stringify({ ok: false, error: 'the photos were read but the pricing pass did not return clean JSON',
-        photosRead: pics.length, batches: batches.length, observations, tried, raw: (r && r.content || '').slice(0, 800) }));
+        photosRead: priorCount + pics.length, batches: observations.length, observations, tried, raw: (r && r.content || '').slice(0, 800) }));
     }
 
     // The arithmetic is done HERE, in code. Not by a model. This is the $352 lesson.
@@ -114,10 +121,10 @@ module.exports = async (req,res) => {
             + `${money.totalIncGST} dollars including G S T. Green waste on top at cost. `
             + `The least certain part is ${parsed.leastCertain||'nothing flagged'}.`,
       costUSD: r.costUSD, ms: Date.now()-t0, readBy: r.provider, tried,
-      photosRead: pics.length, batches: batches.length, observations,
+      photosRead: priorCount + pics.length, batches: observations.length, observations,
     };
     // WRITTEN THE MOMENT IT EXISTS. A chat lost his quote figures once; never again.
-    await log('quotes', { job: out.job, notes, photos: images.length, total: money.totalIncGST,
+    await log('quotes', { job: out.job, notes, photos: priorCount + pics.length, total: money.totalIncGST,
       onSiteHours: money.onSiteHours, manHours: money.manHours, rate: RULES.rateIncGST,
       customerWording: out.customerWording, guard: g.verdict });
     res.statusCode=200; res.end(JSON.stringify(out));
