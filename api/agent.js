@@ -20,6 +20,7 @@ const { loadCanon } = require('../lib/canon');
 const { ALL_DEFS, runAny, shutBrowser } = require('../lib/tools');
 const { guard } = require('../lib/guard');
 const { log } = require('../lib/store');
+const { recall, remember, asText } = require('../lib/memory');
 const { PROTOCOL, open } = require('../lib/protocol');
 const { PATCH_DEF, githubPatch } = require('../lib/patch');
 
