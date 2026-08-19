@@ -309,34 +309,110 @@ $('speak').onclick=()=>speak(lastSpoken);
 speechSynthesis.getVoices();
 
 // ── EARS. AJ talks, it types. He does not read, so he must not have to.
-// Chrome and Edge only (webkit). If the browser will not listen we SAY so
-// out loud rather than sitting there looking broken.
+// REWRITTEN 19 Aug 2026. AJ: "I want this to work on my fucking computer as well
+// as on my phone." The old code used the browser's own Web Speech API. Brave on the
+// DESKTOP strips that API out, so the button was dead there — not a permission
+// problem, and not something switching to Chrome should be needed to fix.
+// So the page records him itself and sends the audio to /api/transcribe, which does
+// the listening on the server. Brave, Chrome, Edge and Safari, desktop and phone alike.
+// Raw PCM is captured and packed into a 16 kHz mono WAV in the page, so no codec,
+// container or browser-specific recorder is involved anywhere.
+var MIC_MAX_SECONDS = 60;   // 60 s of 16 kHz WAV is ~2.6 MB once base64'd. Vercel stops at 4.5 MB.
+
+// Average down to 16 kHz. The sound card gives us 44.1 or 48 kHz; the ear on the
+// other end wants 16 and the file is three times smaller for it.
+function micTo16k(buf, inRate){
+  if(inRate === 16000) return buf;
+  var ratio = inRate / 16000, out = new Float32Array(Math.round(buf.length / ratio));
+  var o = 0, i = 0;
+  while(o < out.length){
+    var next = Math.round((o + 1) * ratio), acc = 0, n = 0;
+    for(var k = i; k < next && k < buf.length; k++){ acc += buf[k]; n++; }
+    out[o++] = n ? acc / n : 0; i = next;
+  }
+  return out;
+}
+
+// 44-byte WAV header + 16-bit little-endian samples. Nothing clever, and nothing
+// that can be missing from a browser.
+function micToWav(samples){
+  var buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
+  function str(off, s){ for(var i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); }
+  str(0, 'RIFF');  v.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  for(var i = 0, off = 44; i < samples.length; i++, off += 2){
+    var s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return new Uint8Array(buf);
+}
+
+function micB64(bytes){
+  var bin = '', chunk = 0x8000;
+  for(var i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  return btoa(bin);
+}
+
 function wireMic(btnId, boxId, idleLabel){
   var btn = document.getElementById(btnId), box = document.getElementById(boxId);
   if(!btn || !box) return;
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){ btn.textContent = 'This browser will not listen — type it'; btn.disabled = true; return; }
-  var rec = null, running = false;
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    btn.textContent = 'This browser will not listen — type it'; btn.disabled = true; return;
+  }
+  var busy = false, stopNow = null;
+
   btn.onclick = function(){
-    if(running && rec){ rec.stop(); return; }
-    rec = new SR(); rec.lang='en-AU'; rec.interimResults=true; rec.continuous=true;
-    var settled = box.value ? box.value + ' ' : '';
-    rec.onstart = function(){ running=true; btn.classList.add('live'); btn.textContent='LISTENING — tap to stop'; };
-    rec.onresult = function(e){
-      var interim='';
-      for(var i=e.resultIndex;i<e.results.length;i++){
-        var t=e.results[i][0].transcript;
-        if(e.results[i].isFinal) settled += t + ' '; else interim += t;
-      }
-      box.value = (settled + interim).replace(/\s+/g,' ').trim();
-    };
-    rec.onerror = function(ev){
-      running=false; btn.classList.remove('live'); btn.textContent=idleLabel;
-      if(ev.error==='not-allowed') speak('I need permission to use the microphone. Allow it in the bar at the top.');
-      else if(ev.error==='no-speech') speak('I did not hear anything.');
-    };
-    rec.onend = function(){ running=false; btn.classList.remove('live'); btn.textContent=idleLabel; };
-    try{ rec.start(); }catch(e){ speak('The microphone would not start. Type it instead.'); }
+    if(busy){ if(stopNow) stopNow(); return; }
+    busy = true; btn.classList.add('live'); btn.textContent = 'LISTENING — tap to stop';
+
+    navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
+    .then(function(stream){
+      var ctx = new AC(), src = ctx.createMediaStreamSource(stream);
+      var node = ctx.createScriptProcessor(4096, 1, 1);
+      var mute = ctx.createGain(); mute.gain.value = 0;   // silent sink — never play his own voice back at him
+      var chunks = [], total = 0, capped = false, cap = MIC_MAX_SECONDS * ctx.sampleRate;
+
+      node.onaudioprocess = function(e){
+        var d = e.inputBuffer.getChannelData(0);
+        chunks.push(new Float32Array(d)); total += d.length;
+        if(total >= cap && !capped && stopNow){ capped = true; stopNow(); }
+      };
+      src.connect(node); node.connect(mute); mute.connect(ctx.destination);
+
+      stopNow = function(){
+        stopNow = null;
+        try{ node.disconnect(); src.disconnect(); mute.disconnect(); }catch(e){}
+        stream.getTracks().forEach(function(t){ t.stop(); });
+        var rate = ctx.sampleRate; try{ ctx.close(); }catch(e){}
+        btn.classList.remove('live'); btn.textContent = 'Writing down what you said…';
+
+        var all = new Float32Array(total), o = 0;
+        for(var i = 0; i < chunks.length; i++){ all.set(chunks[i], o); o += chunks[i].length; }
+        if(total < rate * 0.4){ btn.textContent = idleLabel; busy = false; speak('I did not hear anything.'); return; }
+
+        fetch('/api/transcribe', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + KEY },
+          body: JSON.stringify({ audio: micB64(micToWav(micTo16k(all, rate))), format: 'wav' }) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          btn.textContent = idleLabel; busy = false;
+          if(d && d.ok && d.text){
+            box.value = (box.value ? box.value.trim() + ' ' : '') + d.text;
+            if(capped) speak('That was a full minute so I stopped there. Tap again to keep going.');
+          } else {
+            speak('I could not turn that into words. ' + String((d && d.error) || '').slice(0, 80));
+          }
+        })
+        .catch(function(){ btn.textContent = idleLabel; busy = false; speak('That did not come back. Type it instead.'); });
+      };
+    })
+    .catch(function(){
+      busy = false; btn.classList.remove('live'); btn.textContent = idleLabel;
+      speak('I need permission to use the microphone. Allow it in the bar at the top.');
+    });
   };
 }
 
