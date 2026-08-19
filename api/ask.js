@@ -247,6 +247,7 @@ module.exports = async (req, res) => {
       breaches: (objection?.breaches || []).join(' | '),
       guardVerdict: g.verdict, guardViolations: (g.violations || []).map((v) => v.id).join(' | ') });
     await run.close(status, final, { costUSD, ms: out.ms, models: used.map((x) => x.provider).join(', '), guard: g.verdict });
+    await remember('ask-' + thread, question, final);
     res.statusCode = 200; res.end(JSON.stringify(out));
   } catch (e) {
     await run.close('ERROR', String(e.message || e));
