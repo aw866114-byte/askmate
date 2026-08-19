@@ -20,6 +20,25 @@ const { log } = require('../lib/store');
 const { SYSTEM, LOOK, price, RULES } = require('../lib/quote');
 
 function body(req){ return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{}); }
+// ── THE PRICING PASS MUST COME BACK AS JSON, AND SOMETIMES IT DOES NOT.
+// 19 Aug 2026: AJ hit "the pricing pass did not return clean JSON" on a real job. Reproduced from
+// the container - the SAME request failed once and succeeded on the next attempt. The model wraps
+// the object in prose or code fences, or simply stops writing part-way through. A coin toss is not
+// acceptable in the thing that prices his work, so: strip the wrapper, take the outermost braces,
+// and refuse anything that will not parse. A half-parsed quote is a wrong number in front of a customer.
+function readQuoteJson(text) {
+  const txt = String(text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+  const at = txt.indexOf('{');
+  if (at < 0) return null;
+  for (const end of [txt.length, txt.lastIndexOf('}') + 1]) {
+    if (end <= at) continue;
+    try {
+      const o = JSON.parse(txt.slice(at, end));
+      if (o && Array.isArray(o.lines) && o.lines.length) return o;
+    } catch (e) { /* try the next cut */ }
+  }
+  return null;
+}
 
 module.exports = async (req,res) => {
   res.setHeader('Content-Type','application/json');
@@ -83,25 +102,38 @@ module.exports = async (req,res) => {
     }
 
     // PASS 2 — price ONCE, off everything that was seen across every photo.
-    const r = await withEyes([
+    // 19 Aug 2026: this used to take the FIRST model that said anything at all and give up if that
+    // answer would not parse. AJ hit exactly that on a live job. Now EVERY ear on the bench gets a
+    // go until one returns JSON that actually parses, and maxTokens went 4000 -> 8000 because a
+    // half-written answer is the same fault that broke /api/agent on 18 August.
+    const priceMsgs = [
       { role: 'system', content: SYSTEM(canon) },
       { role: 'user', content:
         `JOB: ${job || '(unnamed)'}\n\nAJ'S NOTES:\n${notes || '(none)'}\n\n` +
         `WHAT WAS SEEN ACROSS ALL ${priorCount + pics.length} PHOTOS (${observations.length} batches, every photo read):\n` +
         observations.join('\n\n') +
-        `\n\nPrice the WHOLE property from all of that. Do not price one batch.` },
-    ], 4000);
+        `\n\nPrice the WHOLE property from all of that. Do not price one batch.\n` +
+        `Return the JSON object and NOTHING else — no preamble, no code fence, no commentary. Finish it.` },
+    ];
 
-    let parsed = null;
-    if (r) {
-      const txt = (r.content || '').replace(/^```json|^```|```$/gm, '').trim();
-      const at = txt.indexOf('{');
-      if (at >= 0) { try { parsed = JSON.parse(txt.slice(at)); } catch { parsed = null; } }
+    let parsed = null, r = null;
+    const rawTries = [];
+    for (const role of EYES) {
+      let cand = null;
+      try {
+        cand = await call(role, priceMsgs, { temperature: 0.2, maxTokens: 8000, model: process.env.VISION_MODEL || null });
+      } catch (e) { tried.push({ phase: 'price', role, error: String(e.message || e).slice(0, 120) }); continue; }
+      const txt = (cand.content || '').trim();
+      tried.push({ phase: 'price', role, provider: cand.provider, chars: txt.length, finish: cand.finishReason });
+      const got = readQuoteJson(txt);
+      if (got) { parsed = got; r = cand; break; }
+      rawTries.push({ role, provider: cand.provider, finish: cand.finishReason, tail: txt.slice(-300) });
     }
     if (!parsed) {
       res.statusCode = 200;
-      return res.end(JSON.stringify({ ok: false, error: 'the photos were read but the pricing pass did not return clean JSON',
-        photosRead: priorCount + pics.length, batches: observations.length, observations, tried, raw: (r && r.content || '').slice(0, 800) }));
+      return res.end(JSON.stringify({ ok: false,
+        error: 'every model on the bench was asked to price it and not one finished a complete answer. Press PRICE IT again — the photos are still loaded.',
+        photosRead: priorCount + pics.length, batches: observations.length, observations, tried, rawTries }));
     }
 
     // The arithmetic is done HERE, in code. Not by a model. This is the $352 lesson.
