@@ -103,6 +103,7 @@ module.exports = async (req, res) => {
       await run.step(`guard ${g.verdict}`, (g.violations||[]).map(v=>v.id).join(' | '));
       await run.close(out.status, r.content, { costUSD: out.costUSD, steps: trail.length, ms: out.ms });
       await log('agent', { task, status:out.status, answer:r.content, costUSD:out.costUSD, steps:trail.length, ms:out.ms });
+      await remember(thread, task, r.content);
       res.statusCode=200; return res.end(JSON.stringify(out));
     }
     // 18 Aug 2026: this used to hand AJ a red box with nothing in it. If it runs out of
