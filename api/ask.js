@@ -123,7 +123,13 @@ module.exports = async (req, res) => {
 
   try {
     // 1. CANON FIRST. Not optional. Throws if VerifyMate is unreachable.
-    const canon = await loadCanon();
+    const canonOnly = await loadCanon();
+    // 19 Aug 2026 - the ASK half remembers the conversation now too. AJ: "AskMate needs to have
+    // the conversation and the memory like you." BUILD IT got it first; this is the half he
+    // actually uses. Folding it into the canon string means EVERY role sees it - the drafter,
+    // the judge, the whole bench and the settler - with no other change to this file.
+    const past = await recall('ask-' + thread);
+    const canon = canonOnly + asText(past);
     await run.step('loaded canon from VerifyMate', `${canon.length} chars`);
 
     // 2. LIVE FACTS. Perplexity searches the actual web and brings sources back,
