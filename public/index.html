@@ -213,7 +213,6 @@ async function ask(mode){
   ['go','council'].forEach(i=>$(i).disabled=false);
 }
 
-$('pics').onchange=()=>{ const n=$('pics').files.length; $('piccount').textContent = n? n+' photo'+(n>1?'s':'')+' ready' : ''; };
 
 // PHOTOS GO THROUGH A DOOR ABOUT 4.5 MB WIDE. Fixed 17 Aug 2026.
 // A phone photo is 3-4 MB, and packaging it for sending makes it a third bigger again, so a
@@ -262,23 +261,79 @@ async function safeJson(r){
   }
 }
 
+// ── PHOTOS IN BATCHES OF FIVE. 19 Aug 2026.
+// AJ: "I need to be able to put, like, say, five photos in... and then another five photos
+// for up to fifteen photos in sections."
+// MEASURED THAT DAY, and this is why it is built this way: six photos in one go is a 2.5 MB
+// upload and takes FORTY-FIVE SECONDS on the server. The server answers fine. His phone does
+// not wait that long - the fetch dies and he sees "TypeError: Load failed", which reads as the
+// app being broken. Fifteen in one request would be three times worse.
+// So each five he adds is READ IMMEDIATELY by /api/look - a short trip - and only the WORDS are
+// kept. PRICE IT then sends the words, not the pictures, so pricing carries no photos at all.
+var MAX_PHOTOS = 15, PIC_BATCH = 5;
+var QOBS = [], QCOUNT = 0, QBUSY = false;
+
+function picLine(msg){ $('piccount').textContent = msg; }
+
+function picStatus(){
+  if(!QCOUNT){ picLine(''); return; }
+  var left = MAX_PHOTOS - QCOUNT;
+  picLine(QCOUNT + ' photo' + (QCOUNT>1?'s':'') + ' read.' +
+    (left > 0 ? ' Add up to ' + Math.min(PIC_BATCH, left) + ' more, or press PRICE IT.' : ' That is the full fifteen. Press PRICE IT.'));
+}
+
+function picReset(){ QOBS = []; QCOUNT = 0; try{ $('pics').value=''; }catch(e){} picLine(''); }
+
+$('pics').onchange = async () => {
+  if(QBUSY) return;
+  var picked = [...$('pics').files];
+  try{ $('pics').value=''; }catch(e){}            // so the same photos can be picked again next round
+  if(!picked.length) return;
+
+  var room = MAX_PHOTOS - QCOUNT;
+  if(room <= 0){ picLine('That is already fifteen photos. Press PRICE IT.'); speak('That is already fifteen photos. Press price it.'); return; }
+  var over = picked.length > Math.min(PIC_BATCH, room);
+  var files = picked.slice(0, Math.min(PIC_BATCH, room));
+
+  QBUSY = true; $('price').disabled = true;
+  picLine('Looking at ' + files.length + ' photo' + (files.length>1?'s':'') + '…');
+  try{
+    var images = (await Promise.all(files.map(shrink))).filter(Boolean);
+    var body = JSON.stringify({ images: images, from: QCOUNT + 1, total: QCOUNT + images.length });
+    if(body.length > MAX_BYTES){
+      picStatus();
+      var m = 'Those photos are too big to send together. Try three at a time.';
+      picLine(m); speak(m); QBUSY = false; $('price').disabled = false; return;
+    }
+    var r = await fetch('/api/look', { method:'POST',
+      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + KEY }, body: body });
+    var d = await safeJson(r);
+    if(d && d.ok && d.observations){
+      QOBS.push(d.observations); QCOUNT += (d.photosRead || images.length);
+      picStatus();
+      speak(QCOUNT + ' photos read so far.' + (QCOUNT < MAX_PHOTOS ? ' Add more, or press price it.' : ' Press price it.'));
+      if(over) speak('I only took the first ' + files.length + '. Add the rest next.');
+    } else {
+      var e1 = 'Could not read those. ' + String((d && d.error) || '').slice(0,80);
+      picStatus(); picLine(e1); speak(e1);
+    }
+  }catch(e){
+    var e2 = 'Those photos did not get through. Try three at a time.';
+    picStatus(); picLine(e2); speak(e2);
+  }
+  QBUSY = false; $('price').disabled = false;
+};
+
 $('price').onclick=async()=>{
-  const files=[...$('pics').files].slice(0,20);
   const notes=$('qnotes').value.trim();
-  if(!files.length && !notes) return;
-  $('price').disabled=true; $('spin').textContent='Reading the photos and pricing it…'; $('spin').style.display='block';
+  if(!QCOUNT && !notes) return;
+  $('price').disabled=true; $('spin').textContent = QCOUNT ? 'Pricing it from the '+QCOUNT+' photos…' : 'Pricing it…';
+  $('spin').style.display='block';
   ['badge','answer','obj','meta','speak'].forEach(i=>$(i).style.display='none');
   try{
-    const images=(await Promise.all(files.map(shrink))).filter(Boolean);
-    const body=JSON.stringify({notes,images,job:(notes.split('\n')[0]||'').slice(0,60)});
-    if(body.length > MAX_BYTES){
-      $('spin').style.display='none';
-      $('badge').className='ERROR'; $('badge').textContent='TOO MANY PHOTOS'; $('badge').style.display='block';
-      const fits=Math.max(1, Math.floor(files.length * MAX_BYTES / body.length));
-      const msg='That is too many photos to send in one go. Try about '+fits+' at a time.';
-      $('answer').textContent=msg; $('answer').style.display='block';
-      speak(msg); $('price').disabled=false; return;
-    }
+    // NO PHOTOS IN THIS REQUEST. The photos were already read, five at a time, by /api/look.
+    const body=JSON.stringify({ notes, images:[], observations:QOBS, photosRead:QCOUNT,
+                                job:(notes.split('\n')[0]||'').slice(0,60) });
     const r=await fetch('/api/quote',{method:'POST',
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+KEY},
       body});
@@ -298,6 +353,8 @@ $('price').onclick=async()=>{
       $('obj').textContent='It needs to know:\n• '+d.questionsForAJ.join('\n• '); $('obj').style.display='block'; }
     $('meta').textContent=(d.photosRead||0)+' photos read in '+(d.batches||0)+' batches by '+(d.readBy||'?')+' · US$'+(d.costUSD||0).toFixed(4)+' · saved to your records'; $('meta').style.display='block';
     lastSpoken=d.spoken; $('speak').style.display='block'; speak(d.spoken);
+    picReset();                                   // next job starts clean, not on top of this one
+    picLine('Priced. Photos cleared — the next job starts fresh.');
   }catch(e){ $('spin').style.display='none'; $('answer').textContent=String(e); $('answer').style.display='block'; }
   $('price').disabled=false;
 };
