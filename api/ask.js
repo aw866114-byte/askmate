@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
     res.statusCode = 401; return res.end(JSON.stringify({ ok: false, error: 'unauthorised' }));
   }
 
-  const { question, mode = 'fast' } = body(req);
+  const { question, mode = 'fast', thread = 'aj' } = body(req);
   if (!question) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, error: 'no question' })); }
 
   const t0 = Date.now();
