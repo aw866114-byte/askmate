@@ -105,6 +105,7 @@ BEST adds Gemini 3.7, Kimi and Claude — about 9 cents.</span>
 <div id="answer"></div>
 <div id="obj"></div>
 <button id="speak">🔊 READ IT TO ME AGAIN</button>
+<button id="tobuild" style="display:none;background:#16a34a;color:#fff;border:0;border-radius:14px;padding:20px;font:700 22px/1 inherit;width:100%;margin-top:10px;cursor:pointer">&#128296; NOW BUILD IT &mdash; send this straight to the builder</button>
 <div id="meta"></div>
 
 <script>
@@ -205,6 +206,13 @@ async function ask(mode){
     }
     lastSpoken = (st==='ESCALATED'?'They disagreed. ':'') + (d.answer||d.error||'');
     $('speak').style.display='block';
+    // 19 Aug 2026. AJ: "you need to make the top three talk to build it... otherwise it's
+    // fucking half working." The research and the answer now carry straight across.
+    if(d.answer && st!=='ERROR' && st!=='BLOCKED'){
+      LASTQ = q; LASTA = d.answer;
+      LASTSRC = (d.sources||[]).slice(0,12).join('\n');
+      $('tobuild').style.display='block';
+    } else { $('tobuild').style.display='none'; }
     speak(lastSpoken);
   }catch(e){
     $('spin').style.display='none';
@@ -520,6 +528,23 @@ function wireMic(btnId, boxId, idleLabel){
 
 // BUILD — AJ picks any site he owns and says what he wants. AskMate writes the code,
 // pushes it to that repo, and Vercel redeploys it. 16 Aug 2026: "should be for every site I have."
+// ── HANDING THE TOP HALF'S WORK TO THE HALF WITH HANDS.
+// The top three research and decide. This carries the question, the answer and the sources
+// down into the builder's box and puts him in front of it. He presses BUILD IT himself -
+// nothing is built behind his back, but he never has to retype a word of it.
+var LASTQ='', LASTA='', LASTSRC='';
+$('tobuild').onclick = () => {
+  $('btask').value =
+    'This came from the research half of AskMate. Do not start it again from scratch.\n\n'+
+    'WHAT I ASKED:\n'+LASTQ+'\n\n'+
+    'WHAT WAS FOUND AND AGREED:\n'+LASTA+
+    (LASTSRC ? '\n\nSOURCES:\n'+LASTSRC : '')+
+    '\n\nNOW DO IT. Check anything that would change what you build before you build it.';
+  $('btask').scrollIntoView({behavior:'smooth',block:'center'});
+  $('btask').focus();
+  speak('Loaded into the builder. Read it, then press BUILD IT.');
+};
+
 $('build').onclick = async () => {
   const task = $('btask').value.trim(); const repo = $('repo').value;
   if(!task){ speak('Tell it what you want built first.'); return; }
