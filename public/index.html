@@ -306,8 +306,10 @@ $('pics').onchange = async () => {
       var m = 'Those photos are too big to send together. Try three at a time.';
       picLine(m); speak(m); QBUSY = false; $('price').disabled = false; return;
     }
-    var r = await fetch('/api/look', { method:'POST',
-      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + KEY }, body: body });
+    var r = await tryHard('/api/look', { method:'POST',
+      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + KEY }, body: body },
+      function(n){ var m = 'That dropped out. Having another go.';
+                   picLine(m + ' Attempt ' + (n+1) + ' of 3.'); speak(m); });
     var d = await safeJson(r);
     if(d && d.ok && d.observations){
       QOBS.push(d.observations); QCOUNT += (d.photosRead || images.length);
@@ -319,7 +321,7 @@ $('pics').onchange = async () => {
       picStatus(); picLine(e1); speak(e1);
     }
   }catch(e){
-    var e2 = 'Those photos did not get through. Try three at a time.';
+    var e2 = 'Those five did not get through after three goes. Nothing was lost. Add them again.';
     picStatus(); picLine(e2); speak(e2);
   }
   QBUSY = false; $('price').disabled = false;
@@ -335,9 +337,11 @@ $('price').onclick=async()=>{
     // NO PHOTOS IN THIS REQUEST. The photos were already read, five at a time, by /api/look.
     const body=JSON.stringify({ notes, images:[], observations:QOBS, photosRead:QCOUNT,
                                 job:(notes.split('\n')[0]||'').slice(0,60) });
-    const r=await fetch('/api/quote',{method:'POST',
+    const r=await tryHard('/api/quote',{method:'POST',
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+KEY},
-      body});
+      body},
+      function(n){ var m='That dropped out. Having another go. Your photos are still here.';
+                   $('spin').textContent = m; speak(m); });
     const d=await safeJson(r);
     $('spin').style.display='none';
     if(!d.ok){ $('badge').className='ERROR'; $('badge').textContent='COULD NOT PRICE IT'; $('badge').style.display='block';
@@ -428,6 +432,30 @@ function micB64(bytes){
   for(var i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   return btoa(bin);
 }
+
+// ── IT MUST NOT DROP OUT. AJ, 19 Aug 2026: "I don't mind if it's not fast. I just don't
+// want it to drop out. I can wait for it a few minutes."
+// A phone on mobile data will sometimes kill a request that is held open for half a minute.
+// So every call the pricing side makes now gets THREE goes before it gives up, with a
+// breather in between, and it says out loud that it is having another go rather than
+// looking broken. Nothing is lost between attempts - the photos stay loaded either way.
+async function tryHard(url, opts, onRetry){
+  var last;
+  for(var attempt = 1; attempt <= 3; attempt++){
+    try{
+      var r = await fetch(url, opts);
+      return r;
+    }catch(e){
+      last = e;
+      if(attempt < 3){
+        if(onRetry) onRetry(attempt);
+        await new Promise(function(res){ setTimeout(res, 2000 * attempt); });
+      }
+    }
+  }
+  throw last;
+}
+
 
 function wireMic(btnId, boxId, idleLabel){
   var btn = document.getElementById(btnId), box = document.getElementById(boxId);
