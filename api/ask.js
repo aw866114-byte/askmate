@@ -84,9 +84,9 @@ ${evidence}
 You are AJ's worker. Do the job he asked. Short. Two lines where two lines will do.
 If you do not know, say UNKNOWN. Never state a guess as a fact.`;
 
-const JUDGE_ONE = (canon) => `${canon}
+const JUDGE_ONE = (canon, evidence) => `${canon}
 ${PROTOCOL}
-
+${evidence}
 You are the JUDGE. You did not write the answer below and you are not here to be agreeable.
 Your only job is to find what is WRONG with it. Check it against the canon above, hardest of all
 against the DO NOT REOPEN list and the WITHDRAWN CLAIMS.
@@ -96,11 +96,18 @@ Reply with STRICT JSON and nothing else:
 
 DISPUTE if: it states something unverified as fact; it contradicts canon; it asks AJ for something
 already written down; it reopens a settled item; the arithmetic is wrong; or it is longer than he needs.
-Say AGREE only if you genuinely cannot fault it.`;
+Say AGREE only if you genuinely cannot fault it.
 
-const JUDGE_PANEL = (canon) => `${canon}
+19-21 Aug 2026 - READ THIS BEFORE YOU DISPUTE ANYTHING AS UNVERIFIED. If there is an EVIDENCE block above,
+it was fetched from the live web IN THIS RUN, minutes ago. IT IS VERIFICATION. A name, address, phone number
+or price that appears in that evidence is VERIFIED and must NOT be disputed as unverified, and must NOT be
+stripped out. The failure this rule exists to stop: on 21 Aug the researcher found AJ a real shop, address
+and phone number, the judge could not see the evidence, marked it down as unverified, and the final answer
+told him everything was unknown. Punish an answer that DROPS something the evidence contains.`;
+
+const JUDGE_PANEL = (canon, evidence) => `${canon}
 ${PROTOCOL}
-
+${evidence}
 You are the JUDGE of a panel. Below are answers from several different models to the same question.
 They could not see each other. Score them against the canon above and against plain correctness.
 
@@ -110,15 +117,23 @@ Reply with STRICT JSON and nothing else:
  "breaches":["canon breaches by any of them"],"confidence":0-100}
 
 Punish hardest: a guess stated as a fact, a contradiction of canon, asking AJ something already written
-down, wrong arithmetic, and length he does not need.`;
+down, wrong arithmetic, and length he does not need.
 
-const SETTLE_SYS = (canon) => `${canon}
+BUT: if there is an EVIDENCE block above, it was fetched live IN THIS RUN. IT IS VERIFICATION. Anything in it
+is VERIFIED. Punish an answer that DROPS a name, address, phone number or price the evidence contains.`;
+
+const SETTLE_SYS = (canon, evidence) => `${canon}
 ${PROTOCOL}
-
+${evidence}
 You write the FINAL answer AJ actually reads. You get the question, every answer the panel gave,
 and the judge's scoring. Take the winner, graft on anything the judge says it missed, cut everything else.
 AJ's voice: short, plain, no hedging, most important thing first.
-If you corrected something, say so in the first line. If any claim is not verified, label it UNKNOWN.`;
+If you corrected something, say so in the first line. If any claim is not verified, label it UNKNOWN.
+
+THE EVIDENCE BLOCK ABOVE WAS FETCHED LIVE IN THIS RUN. IT IS VERIFIED. Your job is to HAND AJ what was found -
+every shop name, address, phone number and price in it. Do NOT write that something is unknown when it is
+sitting in the evidence above. On 21 Aug a settler that could not see the evidence told him everything was
+unknown while the researcher had already found the shop, the street and the phone number. Never again.`;
 
 function body(req) { return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
 function parseJSON(s, fallback) {
@@ -256,7 +271,7 @@ module.exports = async (req, res) => {
 
       // 3b. JUDGE scores all of them.
       const jr = track(await call('judge', [
-        { role: 'system', content: JUDGE_PANEL(canon) },
+        { role: 'system', content: JUDGE_PANEL(canon, evidence) },
         { role: 'user', content: `QUESTION:\n${question}\n\n${live.map((a, i) => `--- ANSWER ${i} (${a.provider}) ---\n${a.content}`).join('\n\n')}` },
       ], { temperature: 0, maxTokens: 900 }));
       const j = parseJSON(jr.content, { best: 0, scores: [], missedByBest: [], breaches: [] });
@@ -264,7 +279,7 @@ module.exports = async (req, res) => {
 
       // 3c. SETTLER writes the one answer AJ reads.
       const st = track(await call('settle', [
-        { role: 'system', content: SETTLE_SYS(canon) },
+        { role: 'system', content: SETTLE_SYS(canon, evidence) },
         { role: 'user', content: `QUESTION:\n${question}\n\nPANEL:\n${live.map((a, i) => `--- ${i} (${a.provider}) ---\n${a.content}`).join('\n\n')}\n\nJUDGE:\n${JSON.stringify(j)}` },
       ]));
       final = st.content;
@@ -291,7 +306,7 @@ module.exports = async (req, res) => {
         ]));
       }
       const jr = track(await call('judge', [
-        { role: 'system', content: JUDGE_ONE(canon) },
+        { role: 'system', content: JUDGE_ONE(canon, evidence) },
         { role: 'user', content: `QUESTION:\n${question}\n\nANSWER TO ATTACK:\n${draft.content}` },
       ], { temperature: 0, maxTokens: 700 }));
       const j = parseJSON(jr.content, { verdict: 'DISPUTE', problems: ['judge did not return valid JSON'] });
@@ -302,7 +317,7 @@ module.exports = async (req, res) => {
       confidence = j.confidence ?? null;
       if (j.verdict === 'DISPUTE') {
         const st = track(await call('settle', [
-          { role: 'system', content: SETTLE_SYS(canon) },
+          { role: 'system', content: SETTLE_SYS(canon, evidence) },
           { role: 'user', content: `QUESTION:\n${question}\n\nANSWER:\n${draft.content}\n\nOBJECTION:\n${JSON.stringify(j)}` },
         ]));
         final = st.content;
