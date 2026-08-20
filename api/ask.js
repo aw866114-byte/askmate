@@ -133,7 +133,11 @@ If you corrected something, say so in the first line. If any claim is not verifi
 THE EVIDENCE BLOCK ABOVE WAS FETCHED LIVE IN THIS RUN. IT IS VERIFIED. Your job is to HAND AJ what was found -
 every shop name, address, phone number and price in it. Do NOT write that something is unknown when it is
 sitting in the evidence above. On 21 Aug a settler that could not see the evidence told him everything was
-unknown while the researcher had already found the shop, the street and the phone number. Never again.`;
+unknown while the researcher had already found the shop, the street and the phone number. Never again.
+
+IF HE ASKED FOR PLACES IN A TOWN, EVERY PLACE YOU LIST MUST BE ONE HE CAN DRIVE TO. Give the street address with the
+phone number so he can see it is local. Anything online-only or interstate goes LAST and is labelled ONLINE ONLY with
+the town it is actually in - never mixed in with the local shops as though it were one of them.`;
 
 function body(req) { return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
 function parseJSON(s, fallback) {
@@ -219,6 +223,11 @@ module.exports = async (req, res) => {
           + 'Never state a present-day fact you have not fetched in this run.\n'
           + 'Some sites block servers outright (Seek, Jora, Indeed, Gumtree, Facebook Marketplace and '
           + 'similar). Do not retry a 403 - note it and get the same fact somewhere else.\n'
+          + 'IF HE NAMES A TOWN OR AREA, ONLY COUNT BUSINESSES PHYSICALLY IN IT. AJ asks so he can drive there. '
+          + 'Check the address on the page, not the domain name. If something is online-only, interstate, or you '
+          + 'cannot find a local address for it, either drop it or mark it plainly as ONLINE ONLY - NOT LOCAL and say '
+          + 'where it actually is. On 21 Aug a Perth web shop was handed to him as if it were in Port Macquarie. '
+          + 'A shop he cannot drive to is not an answer to "where can I buy this in my town".\n'
           + 'Finish with a plain list: what you found, and the full URL for each thing.' },
         { role: 'user', content: question },
       ];
