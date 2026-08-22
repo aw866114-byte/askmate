@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Round Book — All Care work calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+
+<style id="css">
+:root{
+  --paper:#F5F3ED; --card:#FFFFFF; --card-2:#FBFAF6;
+  --ink:#1C1E18; --ink-soft:#565B4E; --ink-faint:#8A8F80;
+  --line:#DCD8CC; --line-soft:#E9E6DC;
+  --accent:#2F4A38; --accent-ink:#FFFFFF; --accent-soft:#E3EAE3;
+  --red:#A83226; --red-soft:#F6E4E1;
+  --amber:#9E6205; --amber-soft:#F8ECD9;
+  --cool:#4A5B63; --cool-soft:#E6EBED;
+  --shadow:0 1px 2px rgba(28,30,24,.07), 0 6px 18px rgba(28,30,24,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#14160F; --card:#1D2018; --card-2:#232720;
+    --ink:#EFEEE4; --ink-soft:#A9AD9C; --ink-faint:#7C8071;
+    --line:#30342A; --line-soft:#272B22;
+    --accent:#8DBE9B; --accent-ink:#101309; --accent-soft:#233026;
+    --red:#EE8C82; --red-soft:#38211E;
+    --amber:#E3A94A; --amber-soft:#352A17;
+    --cool:#9BB0B8; --cool-soft:#1F272A;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#14160F; --card:#1D2018; --card-2:#232720;
+  --ink:#EFEEE4; --ink-soft:#A9AD9C; --ink-faint:#7C8071;
+  --line:#30342A; --line-soft:#272B22;
+  --accent:#8DBE9B; --accent-ink:#101309; --accent-soft:#233026;
+  --red:#EE8C82; --red-soft:#38211E;
+  --amber:#E3A94A; --amber-soft:#352A17;
+  --cool:#9BB0B8; --cool-soft:#1F272A;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:'Archivo',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:19px; line-height:1.5;
+  padding:0 0 120px;
+}
+#root{max-width:820px; margin:0 auto; padding:0 16px;}
+
+/* ---------- masthead ---------- */
+.top{padding:30px 0 20px; border-bottom:3px solid var(--ink);}
+.top h1{
+  font-size:clamp(34px,8vw,52px); font-weight:700; line-height:1;
+  letter-spacing:-.02em; text-wrap:balance;
+}
+.top .today{
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:13px; font-weight:500; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-soft); margin-top:10px;
+}
+.tally{display:flex; flex-wrap:wrap; gap:10px; margin-top:18px;}
+.tally span{
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:14px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 13px; border-radius:2px;
+}
+.t-red{background:var(--red-soft); color:var(--red);}
+.t-amber{background:var(--amber-soft); color:var(--amber);}
+.t-cool{background:var(--cool-soft); color:var(--cool);}
+
+/* ---------- sections ---------- */
+section{margin-top:38px;}
+.sechead{
+  display:flex; align-items:baseline; gap:12px;
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:14px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+  padding-bottom:9px; border-bottom:2px solid var(--line);
+}
+.sechead .n{margin-left:auto; color:var(--ink-faint); font-weight:500; letter-spacing:.08em;}
+.s-red .sechead{color:var(--red); border-bottom-color:var(--red);}
+.s-amber .sechead{color:var(--amber); border-bottom-color:var(--amber);}
+.s-cool .sechead{color:var(--cool); border-bottom-color:var(--line);}
+
+.list{display:flex; flex-direction:column; gap:14px; margin-top:14px;}
+
+/* ---------- job card ---------- */
+.job{
+  background:var(--card); border:1px solid var(--line);
+  border-left:9px solid var(--cool); border-radius:3px;
+  box-shadow:var(--shadow); padding:18px 18px 16px;
+}
+.job.late{border-left-color:var(--red);}
+.job.soon{border-left-color:var(--amber);}
+.job h2{font-size:clamp(23px,5vw,29px); font-weight:700; line-height:1.15; letter-spacing:-.01em;}
+.due{
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;
+  font-size:17px; font-weight:700; margin-top:7px; letter-spacing:.01em;
+}
+.late .due{color:var(--red);} .soon .due{color:var(--amber);} .job .due{color:var(--cool);}
+.meta{margin-top:10px; color:var(--ink-soft); font-size:17px; display:flex; flex-direction:column; gap:3px;}
+.meta a{color:var(--accent); font-weight:600; text-decoration:none; border-bottom:2px solid var(--accent-soft);}
+.meta a:hover{border-bottom-color:var(--accent);}
+.pills{display:flex; flex-wrap:wrap; gap:7px; margin-top:12px;}
+.pill{
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  padding:5px 10px; border-radius:2px; background:var(--accent-soft); color:var(--accent);
+}
+.pill.q{background:var(--line-soft); color:var(--ink-soft);}
+
+.acts{display:flex; flex-wrap:wrap; gap:9px; margin-top:16px;}
+button{
+  font-family:'Archivo',system-ui,sans-serif; font-size:16px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase;
+  padding:14px 18px; border:2px solid var(--ink); border-radius:3px;
+  background:var(--card); color:var(--ink); cursor:pointer; min-height:52px;
+}
+button:hover{background:var(--card-2);}
+button:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+.b-go{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); flex:1 1 190px;}
+.b-go:hover{filter:brightness(1.08); background:var(--accent);}
+.b-quiet{border-color:var(--line); color:var(--ink-soft);}
+.b-del{border-color:var(--red); color:var(--red);}
+.b-add{width:100%; margin-top:22px; font-size:18px; padding:18px;}
+
+/* ---------- form ---------- */
+.form{
+  background:var(--card-2); border:2px solid var(--line); border-radius:3px;
+  padding:18px; margin-top:14px; display:flex; flex-direction:column; gap:14px;
+}
+.form h3{
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:14px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-soft);
+}
+label{display:flex; flex-direction:column; gap:6px; font-size:15px; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);}
+input, select, textarea{
+  font-family:'Archivo',system-ui,sans-serif; font-size:19px; font-weight:500;
+  padding:13px 12px; border:2px solid var(--line); border-radius:3px;
+  background:var(--card); color:var(--ink); width:100%; text-transform:none; letter-spacing:0;
+}
+input:focus, select:focus, textarea:focus{outline:none; border-color:var(--accent);}
+.row{display:flex; gap:12px; flex-wrap:wrap;}
+.row > label{flex:1 1 150px;}
+textarea{min-height:80px; resize:vertical;}
+
+/* ---------- empty + status ---------- */
+.empty{
+  border:2px dashed var(--line); border-radius:3px; padding:34px 22px;
+  text-align:center; color:var(--ink-soft); margin-top:26px;
+}
+.empty strong{display:block; color:var(--ink); font-size:22px; margin-bottom:8px;}
+.hist{margin-top:14px; border-top:1px solid var(--line-soft); padding-top:12px;
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:14px; color:var(--ink-faint);
+  display:flex; flex-direction:column; gap:3px;}
+.hist b{color:var(--ink-soft); font-weight:700;}
+
+#status{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:9;
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:14px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase;
+  padding:12px 18px; border-radius:3px; border:2px solid var(--ink);
+  background:var(--card); color:var(--ink); box-shadow:var(--shadow);
+  max-width:calc(100% - 32px); text-align:center;
+}
+#status[hidden]{display:none;}
+#status.bad{background:var(--red-soft); border-color:var(--red); color:var(--red); cursor:pointer;}
+#status.ok{background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
+footer{margin-top:46px; padding-top:16px; border-top:1px solid var(--line);
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint);}
+@media (prefers-reduced-motion:no-preference){ button{transition:background .12s ease, filter .12s ease;} }
+
+#unlock{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;
+  justify-content:center;padding:20px;z-index:50}
+#unlock .ubox{background:#fff;color:#111;border-radius:14px;padding:22px;max-width:340px;width:100%;
+  box-shadow:0 18px 50px rgba(0,0,0,.35)}
+#unlock h3{margin:0 0 6px;font-size:22px}
+#unlock p{margin:0 0 14px;font-size:15px;opacity:.75}
+#unlock input{width:100%;font-size:17px;padding:12px;border:1px solid #ccc;border-radius:9px;
+  margin-bottom:12px;box-sizing:border-box}
+#unlock button{width:100%}
+#unlock #u-msg{margin-top:10px;font-size:14px;min-height:18px}
+</style>
+
+<script type="application/json" id="state">{"jobs":[]}</script>
+
+</head>
+<body>
+<div id="root"></div>
+<div id="status" hidden></div>
+<input type="file" id="restore-file" accept="application/json,.json" hidden>
+
+<script id="app">
+(function(){
+  var KEY = 'roundbook.v1';
+  var S;
+  try {
+    var stored = window.localStorage ? localStorage.getItem(KEY) : null;
+    S = JSON.parse(stored || document.getElementById('state').textContent || '{"jobs":[]}');
+  } catch(e){ S = {jobs:[]}; }
+  if(!S || !S.jobs) S = {jobs:[]};
+
+  /* ---------- the same password AskMate already uses on this phone ---------- */
+  var MEM = {};
+  function store(k,v){ try{ localStorage.setItem(k,v); }catch(e){} MEM[k]=v; }
+  function recall(k){ try{ var v=localStorage.getItem(k); if(v!==null) return v; }catch(e){} return MEM[k]||''; }
+  var AKEY = recall('askmate_key');
+  var online = false;
+
+  function unlockScreen(){
+    var w=document.createElement('div');
+    w.id='unlock';
+    w.innerHTML='<div class="ubox"><h3>Round Book</h3>'+
+      '<p>Same password as AskMate.</p>'+
+      '<input id="u-pw" type="password" autocomplete="current-password" placeholder="Password">'+
+      '<button class="b-go" id="u-go">Open my round</button>'+
+      '<div id="u-msg"></div></div>';
+    document.body.appendChild(w);
+    var go=document.getElementById('u-go'), pw=document.getElementById('u-pw'), msg=document.getElementById('u-msg');
+    function tryIt(){
+      var v=(pw.value||'').trim();
+      if(!v) return;
+      msg.textContent='Checking...';
+      fetch('/api/health',{headers:{Authorization:'Bearer '+v}})
+        .then(function(r){
+          if(!r.ok) throw new Error('no');
+          AKEY=v; store('askmate_key',v); w.remove(); pull();
+        })
+        .catch(function(){ msg.textContent='That password did not work.'; });
+    }
+    go.addEventListener('click', tryIt);
+    pw.addEventListener('keydown', function(e){ if(e.key==='Enter') tryIt(); });
+    pw.focus();
+  }
+
+  /* Pull the round down from the app. If there is no signal, whatever is on
+     this phone stays on the screen - it is never wiped by a failed fetch. */
+  function pull(){
+    if(!AKEY) return;
+    fetch('/api/round',{headers:{Authorization:'Bearer '+AKEY}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !d.ok || !d.state || !Array.isArray(d.state.jobs)) return;
+        online = true;
+        if(d.state.jobs.length === 0 && S.jobs.length > 0){
+          push();                      /* first run: send this phone's round up */
+          say('Round Book is now on your phone and this computer', 'ok');
+          return;
+        }
+        S = d.state;
+        try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+        render();
+        say('Round Book loaded', 'ok');
+      })
+      .catch(function(){ /* no signal - keep what is on the phone */ });
+  }
+
+  function push(){
+    if(!AKEY) return;
+    fetch('/api/round',{
+      method:'POST',
+      headers:{Authorization:'Bearer '+AKEY,'content-type':'application/json'},
+      body: JSON.stringify({state:{jobs:S.jobs}})
+    })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(d && d.ok){ online = true; say('Saved - on your phone and this computer', 'ok'); }
+      else { online = false; say('Saved on this device only - it will go up next time you save with signal', 'bad'); }
+    })
+    .catch(function(){ online = false; say('Saved on this device only - no signal', 'bad'); });
+  }
+  var editing = null;   // job id being edited, or 'new'
+  var confirmDel = null;
+
+  /* ---------- dates ---------- */
+  function pad(n){ return (n<10?'0':'')+n; }
+  function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function toDate(s){ var p=String(s).split('-'); return new Date(+p[0], +p[1]-1, +p[2], 12, 0, 0); }
+  function fromDate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function addWeeks(s,w){ var d=toDate(s); d.setDate(d.getDate()+ (w*7)); return fromDate(d); }
+  function daysFromToday(s){ return Math.round((toDate(s)-toDate(todayStr()))/86400000); }
+  var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function nice(s){ if(!s) return '--'; var d=toDate(s); return DAYS[d.getDay()]+' '+d.getDate()+' '+MONS[d.getMonth()]; }
+  function longToday(){ var d=new Date();
+    return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]+
+      ' '+d.getDate()+' '+['January','February','March','April','May','June','July',
+      'August','September','October','November','December'][d.getMonth()]+' '+d.getFullYear(); }
+
+  function dueWords(s){
+    var n = daysFromToday(s);
+    if(n < -1) return nice(s)+' · '+(-n)+' DAYS LATE';
+    if(n === -1) return nice(s)+' · 1 DAY LATE';
+    if(n === 0) return 'DUE TODAY · '+nice(s);
+    if(n === 1) return 'DUE TOMORROW · '+nice(s);
+    if(n <= 7) return nice(s)+' · IN '+n+' DAYS';
+    return nice(s)+' · IN '+n+' DAYS';
+  }
+  function bandOf(j){ var n=daysFromToday(j.next); return n<0 ? 'late' : (n<=7 ? 'soon' : 'later'); }
+
+  /* ---------- escaping ---------- */
+  function esc(t){ return String(t==null?'':t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function telHref(p){ return 'tel:'+String(p).replace(/[^0-9+]/g,''); }
+
+  /* ---------- render ---------- */
+  function jobCard(j){
+    var band = bandOf(j);
+    var h = '<div class="job '+(band==='later'?'':band)+'">';
+    h += '<h2>'+esc(j.name)+'</h2>';
+    h += '<div class="due">'+esc(dueWords(j.next))+'</div>';
+    if(j.addr || j.phone){
+      h += '<div class="meta">';
+      if(j.addr) h += '<div>'+esc(j.addr)+'</div>';
+      if(j.phone) h += '<div><a href="'+esc(telHref(j.phone))+'">'+esc(j.phone)+'</a></div>';
+      h += '</div>';
+    }
+    h += '<div class="pills"><span class="pill">Every '+j.cycle+' week'+(j.cycle==1?'':'s')+'</span>';
+    if(j.last) h += '<span class="pill q">Last cut '+esc(nice(j.last))+'</span>';
+    if(j.notes) h += '<span class="pill q">'+esc(j.notes)+'</span>';
+    h += '</div>';
+    h += '<div class="acts">'+
+         '<button class="b-go" data-do="done" data-id="'+j.id+'">Done today</button>'+
+         '<button class="b-quiet" data-do="skip" data-id="'+j.id+'">Skip to next</button>'+
+         '<button class="b-quiet" data-do="edit" data-id="'+j.id+'">Edit</button>'+
+         '</div>';
+    var hist = (j.log||[]).slice(-4).reverse();
+    if(hist.length){
+      h += '<div class="hist">';
+      hist.forEach(function(e){
+        h += '<div><b>'+esc(nice(e.d))+'</b> — '+(e.t==='done'?'cut':'not done, rolled on')+'</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+    if(editing === j.id) h += form(j);
+    return h;
+  }
+
+  function form(j){
+    var isNew = !j;
+    j = j || {name:'',addr:'',phone:'',cycle:4,next:todayStr(),notes:''};
+    var h = '<div class="form"><h3>'+(isNew?'New job':'Edit job')+'</h3>';
+    h += '<label>Name<input id="f-name" value="'+esc(j.name)+'" placeholder="e.g. Laurieton Hotel"></label>';
+    h += '<label>Address<input id="f-addr" value="'+esc(j.addr||'')+'" placeholder="Street and suburb"></label>';
+    h += '<div class="row">';
+    h += '<label>Phone<input id="f-phone" value="'+esc(j.phone||'')+'" inputmode="tel" placeholder="02 6581 0000"></label>';
+    h += '<label>Comes around every<select id="f-cycle">';
+    [1,2,3,4,5,6,8,10,12,26,52].forEach(function(w){
+      h += '<option value="'+w+'"'+(Number(j.cycle)===w?' selected':'')+'>'+w+' week'+(w==1?'':'s')+'</option>';
+    });
+    h += '</select></label>';
+    h += '<label>Next due<input id="f-next" type="date" value="'+esc(j.next)+'"></label>';
+    h += '</div>';
+    h += '<label>Note<textarea id="f-notes" placeholder="Gate code, dog, where the bin goes">'+esc(j.notes||'')+'</textarea></label>';
+    h += '<div class="acts"><button class="b-go" data-do="save" data-id="'+(isNew?'new':j.id)+'">Save</button>'+
+         '<button class="b-quiet" data-do="cancel">Cancel</button>';
+    if(!isNew){
+      h += confirmDel===j.id
+        ? '<button class="b-del" data-do="reallydel" data-id="'+j.id+'">Yes — delete it</button>'
+        : '<button class="b-del" data-do="del" data-id="'+j.id+'">Delete</button>';
+    }
+    h += '</div></div>';
+    return h;
+  }
+
+  function section(cls, title, jobs){
+    if(!jobs.length) return '';
+    var h = '<section class="'+cls+'"><div class="sechead"><span>'+title+'</span>'+
+            '<span class="n">'+jobs.length+'</span></div><div class="list">';
+    jobs.forEach(function(j){ h += jobCard(j); });
+    return h + '</div></section>';
+  }
+
+  function render(){
+    var jobs = S.jobs.slice().sort(function(a,b){ return a.next < b.next ? -1 : a.next > b.next ? 1 : 0; });
+    var late  = jobs.filter(function(j){ return bandOf(j)==='late'; });
+    var soon  = jobs.filter(function(j){ return bandOf(j)==='soon'; });
+    var later = jobs.filter(function(j){ return bandOf(j)==='later'; });
+
+    var h = '<div class="top"><h1>Round Book</h1>'+
+            '<div class="today">'+esc(longToday())+'</div>';
+    if(jobs.length){
+      h += '<div class="tally">';
+      h += '<span class="'+(late.length?'t-red':'t-cool')+'">'+late.length+' overdue</span>';
+      h += '<span class="'+(soon.length?'t-amber':'t-cool')+'">'+soon.length+' due this week</span>';
+      h += '<span class="t-cool">'+jobs.length+' on the round</span>';
+      h += '</div>';
+    }
+    h += '</div>';
+
+    h += section('s-red','Overdue', late);
+    h += section('s-amber','This week', soon);
+    h += section('s-cool','Coming up', later);
+
+    if(!jobs.length && editing !== 'new'){
+      h += '<div class="empty"><strong>Nothing on the round yet.</strong>'+
+           'Add your first job and tell it how often it comes around. '+
+           'It works out the next one for you every time you tick it off.</div>';
+    }
+    if(editing === 'new') h += form(null);
+    else h += '<button class="b-go b-add" data-do="new">+ Add a job</button>';
+
+    h += '<div class="acts" style="margin-top:30px">'+
+         '<button class="b-quiet" data-do="backup">Back up to a file</button>'+
+         '<button class="b-quiet" data-do="restore">Restore from a file</button></div>';
+    h += '<footer>Your round only. Nothing here talks to InvoiceMate or Xero. '+
+         'It saves on this device and, when you have signal, up to AskMate — so the '+
+         'phone and the computer show the same round. Back it up now and then anyway.</footer>';
+    document.getElementById('root').innerHTML = h;
+    var f = document.getElementById('f-name'); if(f && editing) f.focus();
+  }
+
+  /* ---------- saving ---------- */
+  var statusEl = document.getElementById('status');
+  function say(msg, cls){
+    statusEl.textContent = msg; statusEl.className = cls || '';
+    statusEl.hidden = false;
+    if(cls === 'ok'){ clearTimeout(say._t); say._t = setTimeout(function(){ statusEl.hidden = true; }, 1400); }
+  }
+  function save(){
+    var localOk = true;
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch(e){ localOk = false; }
+    if(AKEY) push();
+    else if(localOk) say('Saved', 'ok');
+    else say('NOT SAVED — back it up to a file now', 'bad');
+  }
+  function backup(){
+    var blob = new Blob([JSON.stringify(S, null, 2)], {type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'round-book-' + todayStr() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    say('Backup saved to Downloads', 'ok');
+  }
+  function restore(file){
+    var r = new FileReader();
+    r.onload = function(){
+      try {
+        var d = JSON.parse(r.result);
+        if(!d || !Array.isArray(d.jobs)) throw new Error('bad');
+        S = d; editing = null; confirmDel = null; render(); save();
+        say('Round restored — ' + S.jobs.length + ' jobs', 'ok');
+      } catch(e){ say('That file is not a Round Book backup', 'bad'); }
+    };
+    r.readAsText(file);
+  }
+
+  /* ---------- actions ---------- */
+  function byId(id){ for(var i=0;i<S.jobs.length;i++){ if(S.jobs[i].id===id) return S.jobs[i]; } return null; }
+
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-do]'); if(!b) return;
+    var what = b.getAttribute('data-do'), id = b.getAttribute('data-id'), j = id ? byId(id) : null;
+
+    if(what === 'backup'){ backup(); return; }
+    if(what === 'restore'){ document.getElementById('restore-file').click(); return; }
+    if(what === 'new'){ editing = 'new'; confirmDel = null; render(); return; }
+    if(what === 'cancel'){ editing = null; confirmDel = null; render(); return; }
+    if(what === 'edit'){ editing = (editing === id ? null : id); confirmDel = null; render(); return; }
+    if(what === 'del'){ confirmDel = id; render(); return; }
+    if(what === 'reallydel'){
+      S.jobs = S.jobs.filter(function(x){ return x.id !== id; });
+      editing = null; confirmDel = null; render(); save(); return;
+    }
+    if(what === 'done' && j){
+      var t = todayStr();
+      j.log = j.log || []; j.log.push({d:t, t:'done'});
+      j.last = t; j.next = addWeeks(t, j.cycle);
+      render(); save(); return;
+    }
+    if(what === 'skip' && j){
+      j.log = j.log || []; j.log.push({d:j.next, t:'skip'});
+      var n = j.next, guard = 0;
+      do { n = addWeeks(n, j.cycle); guard++; } while(daysFromToday(n) < 0 && guard < 400);
+      j.next = n;
+      render(); save(); return;
+    }
+    if(what === 'save'){
+      var name = (document.getElementById('f-name').value || '').trim();
+      if(!name){ document.getElementById('f-name').focus(); say('Give it a name first','bad'); return; }
+      var data = {
+        name: name,
+        addr: (document.getElementById('f-addr').value||'').trim(),
+        phone:(document.getElementById('f-phone').value||'').trim(),
+        cycle: Number(document.getElementById('f-cycle').value) || 4,
+        next: document.getElementById('f-next').value || todayStr(),
+        notes:(document.getElementById('f-notes').value||'').trim()
+      };
+      if(id === 'new'){
+        data.id = 'j'+Date.now().toString(36)+Math.floor(Math.random()*1000).toString(36);
+        data.log = []; data.last = '';
+        S.jobs.push(data);
+      } else if(j){
+        j.name=data.name; j.addr=data.addr; j.phone=data.phone;
+        j.cycle=data.cycle; j.next=data.next; j.notes=data.notes;
+      }
+      editing = null; confirmDel = null; render(); save(); return;
+    }
+  });
+
+  var rf = document.getElementById('restore-file');
+  if(rf) rf.addEventListener('change', function(){
+    if(this.files && this.files[0]) restore(this.files[0]);
+    this.value = '';
+  });
+
+  render();
+  if(AKEY) pull(); else unlockScreen();
+})();
+</script>
+
+</body>
+</html>
